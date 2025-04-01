@@ -1,0 +1,29 @@
+{
+  "BIG_NUMBER": "5518981419052@s.whatsapp.net",
+  "ADMINS": [
+    "5518981419052@s.whatsapp.net"
+  ],
+  "botId": "5518981419052@s.whatsapp.net",
+  "scheduledMessages": {
+    "groups": [
+      {
+        "id": "120363347240793429@g.us",
+        "intervalHours": 1,
+        "name": "TRADE 3"
+      },
+      {
+        "id": "120363376345656162@g.us",
+        "intervalHours": 1,
+        "name": "TRADE 4"
+      }
+    ],
+    "messages": [
+      "⚔️ **Vendo Elite Knight 75** | **Club 76** | **ML 6**\n\n✅ **Postman Quest:** Concluída\n✅ **Djinn Quest:** Concluída\n❌ **Banshee Quest:** Não feita\n\n🎭 **Addons:**\n- 🎩 **Citizen Full**\n- 🧙‍♂️ **Mage Full**\n\n🔮 **Mais de 140 Charm Points!**\n🎁 **Brinde Especial:** Maker **lvl 12** | **ML 27**\n🛡️ **20 dias de P.A** (*185 Miracle Points na Store*)\n🎒 **Acompanha Suplys**\n⚖️ **Full Neutro**\n\n📲 **Entre em contato para negociação!** BUY G LEGS FULL CLUB / MPA FULL CLUB / WAR HAMMER BIS ATT 💰🔥"
+    ],
+    "media": {
+      "images": "./media/images/",
+      "videos": "./media/videos/"
+    }
+  },
+  "ignoredUsers": []
+}

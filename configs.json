@@ -1,0 +1,31 @@
+{
+  "BIG_NUMBER": "5518981419052@s.whatsapp.net",
+  "ADMINS": [
+    "5518981419052@s.whatsapp.net"
+  ],
+  "botId": "5518981419052@s.whatsapp.net",
+  "scheduledMessages": {
+    "groups": [
+      {
+        "id": "120363347240793429@g.us",
+        "intervalHours": 1,
+        "name": "MIRACLE TRADE 3"
+      },
+      {
+        "id": "120363376345656162@g.us",
+        "intervalHours": 1,
+        "name": "MIRACLE TRADE 4"
+      }
+    ],
+    "messages": [
+      "✨🔥 GRANDE OPORTUNIDADE! CONTAS E ITENS À VENDA! 🔥✨\\n\\n📌 **Personagens Disponíveis:**\\n🧙‍♂️ **Royal Paladin - Level 42** 🎯 *(Red sai em 2 dias, não está hunted)*\\n🔹 **Skills:** 79 Distance, ML 13\\n🔹 **SET Completo:** Blue Robe, Quiver +2 Distance + Crítico, Crossbow Crítico, Viking Helmet +1 Distance\\n💰 **R$450** (Naked) | **R$650** (Com SET)\\n\\n📌 **Itens Disponíveis:**\\n👢 **Boots of Haste (BOH)** - **R$130** ou **70k**\\n🦾 **Knight Armor +3 Axe** - **R$150** ou **80k**\\n👑 **Royal Helmet +3 Axe** - **R$200** ou **110k**\\n\\n *120k = R$2 each*\\n\\n 📲 **Entre em contato para negociação!** Aceito pagamento em dinheiro ou gold! 💰🔥"
+    ],
+    "media": {
+      "images": "./media/images/",
+      "videos": "/media/videos/"
+    }
+  },
+  "ignoredUsers": [
+    ""
+  ]
+}

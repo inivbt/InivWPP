@@ -1,0 +1,19 @@
+{
+  "sessions": [
+    {
+      "name": "Disparos Galdino",
+      "active": false,
+      "features": {
+        "disparoPorTempo": true
+      }
+    },
+    {
+      "name": "BIG",
+      "active": true,
+      "features": {
+        "bigLeoHandler": true,
+        "scheduleMessages": true
+      }
+    }
+  ]
+}

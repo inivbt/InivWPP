@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code do WhatsApp</title>
+</head>
+<body>
+    <h2 id="session-info">Aguardando QR Code...</h2>
+    <img id="qrcode" src="" alt="QR Code do WhatsApp">
+
+    <script>
+        async function updateQRCode() {
+            try {
+                const response = await fetch('http://localhost:9999/getQRCode');
+                const data = await response.json();
+
+                if (data.qrCode && data.sessionName) {
+                    document.getElementById('qrcode').src = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodeURIComponent(data.qrCode);
+                    document.getElementById('session-info').innerText = `QR code atualizado para sessão "${data.sessionName}"`;
+                } else {
+                    console.error("QR Code ou nome da sessão não disponível.");
+                }
+            } catch (error) {
+                console.error("Erro ao buscar QR Code:", error);
+            }
+        }
+
+        // Atualiza o QR Code a cada 10 segundos
+        setInterval(updateQRCode, 10000);
+        updateQRCode();
+    </script>
+</body>
+</html>

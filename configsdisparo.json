@@ -1,0 +1,45 @@
+{
+  "globalIntervalSeconds": 60,
+  "mode": "destinatarios",
+  "recipients": [
+    "5581985399011@s.whatsapp.net",
+    "5581991204982@s.whatsapp.net",
+    "5581997216710@s.whatsapp.net",
+    "5581999544609@s.whatsapp.net",
+    "5581984677109@s.whatsapp.net",
+    "5581995769418@s.whatsapp.net",
+    "5581996660130@s.whatsapp.net"
+  ],
+  "sequences": [
+    {
+      "messages": [
+        {
+          "type": "media",
+          "content": "media/videos/galdino.mp4",
+          "delay": 15,
+          "path": "media/videos/galdino.mp4"
+        },
+        {
+          "type": "text",
+          "content": "NÃO VAMOS PARAR DE LUTAR!\n\nAnimais agonizando nas ruas não é acaso, é consequência do abandono e da crueldade. Quem escolhe maltratar precisa pagar por isso. Seguimos firmes na luta por justiça.\n\nDenuncie através da Central Animal e ajude a fazer a diferença.",
+          "delay": 60
+        }
+      ]
+    },
+    {
+      "messages": [
+        {
+          "type": "media",
+          "content": "media/videos/galdino.mp4",
+          "delay": 15,
+          "path": "media/videos/galdino.mp4"
+        },
+        {
+          "type": "text",
+          "content": "JUSTIÇA PARA OS ANIMAIS!\n\nMaus-tratos e abandono não podem ficar impunes. Cada ato de crueldade precisa ter consequência, e nossa luta é para que todos os culpados paguem pelo que fizeram.\n\nAcesse a Central Animal e denuncie qualquer abuso. Juntos, podemos combater essa crueldade.",
+          "delay": 60
+        }
+      ]
+    }
+  ]
+}

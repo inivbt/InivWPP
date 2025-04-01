@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Config Disparo por Tempo</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+  <style>
+    body {
+      background: #f5f5f5;
+      margin: 20px;
+    }
+    .entry-box {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 15px;
+      margin-bottom: 10px;
+    }
+    .section-header {
+      margin-top: 20px;
+      font-weight: bold;
+    }
+    .delete-btn {
+      cursor: pointer;
+      color: red;
+      margin-left: 10px;
+    }
+  </style>
+</head>
+<body class="container">
+  <h1>Disparo por Tempo - Configurações</h1>
+  <p class="text-muted">
+    Configure o intervalo global e escolha o modo de disparo.
+    <br />
+    <strong>Destinatários com Números:</strong> Permite adicionar uma lista de números e várias sequências (cada sequência com uma lista de mensagens).
+    <br />
+    <strong>Sequência por Ativação de Palavra‑chave:</strong> Permite criar várias sequências, cada uma com sua palavra‑chave, que serão ativadas quando a mensagem recebida contiver essa palavra.
+    <br />
+    Ao final, clique em “Salvar Alterações” para baixar o <code>configsdisparo.json</code>.
+  </p>
+
+  <!-- Upload de JSON existente -->
+  <div class="alert alert-info mb-4">
+    <strong>Passo 1:</strong> Faça upload do arquivo <code>configsdisparo.json</code> (opcional).
+    <br />
+    <input type="file" id="fileInput" accept="application/json" class="form-control mt-2" style="max-width: 300px;">
+  </div>
+
+  <!-- Intervalo Global -->
+  <div class="mb-3">
+    <label for="globalInterval" class="form-label"><strong>Intervalo Global (segundos)</strong></label>
+    <input type="number" class="form-control" id="globalInterval" value="3600">
+  </div>
+
+  <!-- Seletor de Modo -->
+  <div class="mb-4">
+    <label class="form-label"><strong>Modo de Disparo</strong></label>
+    <div class="form-check">
+      <input type="radio" class="form-check-input" name="mode" id="modeDestinatarios" value="destinatarios" checked>
+      <label class="form-check-label" for="modeDestinatarios">Destinatários com Números</label>
+    </div>
+    <div class="form-check">
+      <input type="radio" class="form-check-input" name="mode" id="modePalavraChave" value="palavrachave">
+      <label class="form-check-label" for="modePalavraChave">Sequência por Ativação de Palavra‑chave</label>
+    </div>
+  </div>
+
+  <!-- Seção Modo Destinatários -->
+  <div id="destinatariosSection">
+    <h4 class="section-header">Destinatários (Envio Agendado)</h4>
+    <div id="recipientsContainer" class="mb-3"></div>
+    <button class="btn btn-primary mb-3" id="addRecipientBtn">+ Adicionar Destinatário</button>
+    
+    <h4 class="section-header">Sequências (Sem Palavra‑chave)</h4>
+    <div id="destSequencesContainer" class="mb-3"></div>
+    <button class="btn btn-primary mb-3" id="addDestSequenceBtn">+ Adicionar Sequência</button>
+  </div>
+
+  <!-- Seção Modo Palavra‑chave -->
+  <div id="palavraChaveSection" style="display:none;">
+    <h4 class="section-header">Sequências por Ativação de Palavra‑chave</h4>
+    <div id="sequencesContainer" class="mb-3"></div>
+    <button class="btn btn-primary mb-3" id="addSequenceBtn">+ Adicionar Sequência</button>
+  </div>
+
+  <button class="btn btn-success" id="saveConfigBtn">Salvar Alterações (Gerar Download)</button>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Configuração inicial
+    let config = {
+      globalIntervalSeconds: 3600,
+      mode: "destinatarios", // "destinatarios" ou "palavrachave"
+      recipients: [],
+      // Para modo destinatarios: array de sequências (cada com messages)
+      destSequences: [],
+      // Para modo palavra-chave: array de sequências com { keyword, messages }
+      sequences: []
+    };
+
+    // Atualiza exibição conforme modo
+    function updateModeDisplay() {
+      const mode = document.querySelector('input[name="mode"]:checked').value;
+      config.mode = mode;
+      if (mode === "destinatarios") {
+        document.getElementById("destinatariosSection").style.display = "block";
+        document.getElementById("palavraChaveSection").style.display = "none";
+      } else {
+        document.getElementById("destinatariosSection").style.display = "none";
+        document.getElementById("palavraChaveSection").style.display = "block";
+      }
+    }
+    document.querySelectorAll('input[name="mode"]').forEach(input => {
+      input.addEventListener('change', updateModeDisplay);
+    });
+    updateModeDisplay();
+
+    // Carrega arquivo JSON se selecionado
+    document.getElementById('fileInput').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          config = JSON.parse(event.target.result);
+          if (!config.mode) config.mode = "destinatarios";
+          updateModeDisplay();
+          if (config.mode === "destinatarios") {
+            if (!config.recipients) config.recipients = [];
+            if (!config.destSequences) config.destSequences = [];
+          } else {
+            if (!config.sequences) config.sequences = [];
+          }
+          populateForm();
+        } catch (err) {
+          alert("Erro ao ler o JSON. Verifique o arquivo.");
+          console.error(err);
+        }
+      };
+      reader.readAsText(file);
+    });
+
+    function populateForm() {
+      document.getElementById('globalInterval').value = config.globalIntervalSeconds || 3600;
+      if (config.mode === "destinatarios") {
+        renderRecipients();
+        renderDestSequences();
+      } else {
+        renderSequences();
+      }
+    }
+
+    // ----------------- Modo Destinatarios -----------------
+    function renderRecipients() {
+      const container = document.getElementById('recipientsContainer');
+      container.innerHTML = '';
+      config.recipients.forEach((recipient, index) => {
+        const div = document.createElement('div');
+        div.classList.add('entry-box');
+        div.innerHTML = `
+          <label>Telefone/JID</label>
+          <input type="text" class="form-control mb-2" value="${recipient}" data-rindex="${index}">
+          <button class="btn btn-danger btn-sm" onclick="deleteRecipient(${index})">Remover</button>
+        `;
+        container.appendChild(div);
+      });
+      container.querySelectorAll('input').forEach(input => {
+        input.addEventListener('change', e => {
+          const idx = e.target.getAttribute('data-rindex');
+          config.recipients[idx] = e.target.value.trim();
+        });
+      });
+    }
+    function deleteRecipient(index) {
+      config.recipients.splice(index, 1);
+      renderRecipients();
+    }
+    window.deleteRecipient = deleteRecipient;
+    document.getElementById('addRecipientBtn').addEventListener('click', () => {
+      config.recipients.push('');
+      renderRecipients();
+    });
+
+    function renderDestSequences() {
+      const container = document.getElementById("destSequencesContainer");
+      container.innerHTML = "";
+      config.destSequences.forEach((seq, seqIndex) => {
+        const seqDiv = document.createElement("div");
+        seqDiv.classList.add("entry-box");
+        seqDiv.innerHTML = `
+          <div class="mb-2">
+            <label>Sequência de Mensagens</label>
+            <div id="destSeqMessages_${seqIndex}"></div>
+            <button class="btn btn-primary btn-sm mt-2" onclick="addDestSeqMessage(${seqIndex})">+ Adicionar Mensagem</button>
+          </div>
+          <button class="btn btn-danger btn-sm" onclick="deleteDestSequence(${seqIndex})">Remover Sequência</button>
+        `;
+        container.appendChild(seqDiv);
+        renderDestSeqMessages(seqIndex);
+      });
+    }
+    function renderDestSeqMessages(seqIndex) {
+      const container = document.getElementById(`destSeqMessages_${seqIndex}`);
+      container.innerHTML = "";
+      config.destSequences[seqIndex].messages.forEach((msgObj, index) => {
+        const div = document.createElement("div");
+        div.classList.add("entry-box");
+        div.innerHTML = `
+          <div class="mb-2">
+            <label>Tipo da Mensagem</label>
+            <input type="text" class="form-control" data-sindex="${seqIndex}" data-mindex="${index}" data-field="type" value="${msgObj.type || ''}">
+          </div>
+          <div class="mb-2">
+            <label>Conteúdo / Path</label>
+            <input type="text" class="form-control" data-sindex="${seqIndex}" data-mindex="${index}" data-field="content" value="${msgObj.content || msgObj.path || ''}">
+            <small class="text-muted">Para "text", coloque o texto; para "media"/"audio", o caminho do arquivo.</small>
+          </div>
+          <div class="mb-2">
+            <label>Delay (segundos)</label>
+            <input type="number" class="form-control" data-sindex="${seqIndex}" data-mindex="${index}" data-field="delay" value="${msgObj.delay || 0}">
+          </div>
+          <button class="btn btn-danger btn-sm" onclick="deleteDestSeqMessage(${seqIndex}, ${index})">Remover Mensagem</button>
+        `;
+        container.appendChild(div);
+      });
+      container.querySelectorAll('input').forEach(input => {
+        input.addEventListener("change", e => {
+          const sindex = e.target.getAttribute("data-sindex");
+          const mindex = e.target.getAttribute("data-mindex");
+          const field = e.target.getAttribute("data-field");
+          const val = e.target.value;
+          if(field === "delay"){
+            config.destSequences[sindex].messages[mindex][field] = parseInt(val) || 0;
+          } else {
+            config.destSequences[sindex].messages[mindex][field] = val;
+          }
+          if(field === "content" && (config.destSequences[sindex].messages[mindex].type === "media" || config.destSequences[sindex].messages[mindex].type === "audio")){
+            config.destSequences[sindex].messages[mindex].path = val;
+          }
+        });
+      });
+    }
+    function addDestSeqMessage(seqIndex) {
+      if(!config.destSequences[seqIndex].messages) config.destSequences[seqIndex].messages = [];
+      config.destSequences[seqIndex].messages.push({
+        type: 'text',
+        content: '',
+        delay: 0
+      });
+      renderDestSeqMessages(seqIndex);
+    }
+    function deleteDestSeqMessage(seqIndex, mindex) {
+      config.destSequences[seqIndex].messages.splice(mindex, 1);
+      renderDestSeqMessages(seqIndex);
+    }
+    function deleteDestSequence(seqIndex) {
+      config.destSequences.splice(seqIndex, 1);
+      renderDestSequences();
+    }
+    document.getElementById("addDestSequenceBtn").addEventListener("click", () => {
+      if(!config.destSequences) config.destSequences = [];
+      config.destSequences.push({ messages: [] });
+      renderDestSequences();
+    });
+
+    // ----------------- Modo Palavra‑chave -----------------
+    function renderSequences() {
+      const container = document.getElementById("sequencesContainer");
+      container.innerHTML = "";
+      config.sequences.forEach((sequence, seqIndex) => {
+        const seqDiv = document.createElement("div");
+        seqDiv.classList.add("entry-box");
+        seqDiv.innerHTML = `
+          <div class="mb-2">
+            <label>Palavra‑chave para ativação</label>
+            <input type="text" class="form-control" data-sindex="${seqIndex}" data-field="keyword" value="${sequence.keyword || ''}">
+          </div>
+          <div class="mb-2">
+            <label>Mensagens da Sequência</label>
+            <div id="seqMessages_${seqIndex}"></div>
+            <button class="btn btn-primary btn-sm mt-2" onclick="addSeqMessage(${seqIndex})">+ Adicionar Mensagem</button>
+          </div>
+          <button class="btn btn-danger btn-sm" onclick="deleteSequence(${seqIndex})">Remover Sequência</button>
+        `;
+        container.appendChild(seqDiv);
+
+        // Adiciona listener para salvar a keyword quando mudar
+        const keywordInput = seqDiv.querySelector('input[data-field="keyword"]');
+        keywordInput.addEventListener('change', (e) => {
+          const sindex = e.target.getAttribute('data-sindex');
+          config.sequences[sindex].keyword = e.target.value.trim();
+        });
+
+        renderSeqMessages(seqIndex);
+      });
+    }
+    function renderSeqMessages(seqIndex) {
+      const container = document.getElementById(`seqMessages_${seqIndex}`);
+      container.innerHTML = "";
+      config.sequences[seqIndex].messages.forEach((msgObj, index) => {
+        const div = document.createElement("div");
+        div.classList.add("entry-box");
+        div.innerHTML = `
+          <div class="mb-2">
+            <label>Tipo da Mensagem</label>
+            <input type="text" class="form-control" data-sindex="${seqIndex}" data-mindex="${index}" data-field="type" value="${msgObj.type || ''}">
+          </div>
+          <div class="mb-2">
+            <label>Conteúdo / Path</label>
+            <input type="text" class="form-control" data-sindex="${seqIndex}" data-mindex="${index}" data-field="content" value="${msgObj.content || msgObj.path || ''}">
+            <small class="text-muted">Para "text", coloque o texto; para "media" ou "audio", o caminho do arquivo.</small>
+          </div>
+          <div class="mb-2">
+            <label>Delay (segundos)</label>
+            <input type="number" class="form-control" data-sindex="${seqIndex}" data-mindex="${index}" data-field="delay" value="${msgObj.delay || 0}">
+          </div>
+          <button class="btn btn-danger btn-sm" onclick="deleteSeqMessage(${seqIndex}, ${index})">Remover Mensagem</button>
+        `;
+        container.appendChild(div);
+      });
+      container.querySelectorAll('input').forEach((input) => {
+        input.addEventListener("change", (e) => {
+          const sindex = e.target.getAttribute("data-sindex");
+          const mindex = e.target.getAttribute("data-mindex");
+          const field = e.target.getAttribute("data-field");
+          const val = e.target.value;
+          if(field === "delay"){
+            config.sequences[sindex].messages[mindex][field] = parseInt(val) || 0;
+          } else {
+            config.sequences[sindex].messages[mindex][field] = val;
+          }
+          if(field === "content" && (config.sequences[sindex].messages[mindex].type === "media" || config.sequences[sindex].messages[mindex].type === "audio")){
+            config.sequences[sindex].messages[mindex].path = val;
+          }
+        });
+      });
+    }
+    function addSeqMessage(seqIndex) {
+      if(!config.sequences[seqIndex].messages) config.sequences[seqIndex].messages = [];
+      config.sequences[seqIndex].messages.push({
+        type: 'text',
+        content: '',
+        delay: 0
+      });
+      renderSeqMessages(seqIndex);
+    }
+    function deleteSeqMessage(seqIndex, mindex) {
+      config.sequences[seqIndex].messages.splice(mindex, 1);
+      renderSeqMessages(seqIndex);
+    }
+    function deleteSequence(seqIndex) {
+      config.sequences.splice(seqIndex, 1);
+      renderSequences();
+    }
+    document.getElementById('addSequenceBtn').addEventListener('click', () => {
+      if (!config.sequences) config.sequences = [];
+      config.sequences.push({
+        keyword: '',
+        messages: []
+      });
+      renderSequences();
+    });
+
+    // Botão Salvar
+    document.getElementById('saveConfigBtn').addEventListener('click', () => {
+      config.globalIntervalSeconds = parseInt(document.getElementById('globalInterval').value) || 3600;
+      let finalConfig = {};
+      if (config.mode === "destinatarios") {
+        finalConfig = {
+          globalIntervalSeconds: config.globalIntervalSeconds,
+          mode: "destinatarios",
+          recipients: config.recipients,
+          sequences: config.destSequences
+        };
+      } else {
+        finalConfig = {
+          globalIntervalSeconds: config.globalIntervalSeconds,
+          mode: "palavrachave",
+          sequences: config.sequences
+        };
+      }
+      const finalJson = JSON.stringify(finalConfig, null, 2);
+      const blob = new Blob([finalJson], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = "configsdisparo.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    document.addEventListener("DOMContentLoaded", () => {
+      if (!config.mode) {
+        config.mode = "destinatarios";
+      }
+      if (config.mode === "destinatarios") {
+        if (!config.recipients) config.recipients = [];
+        if (!config.destSequences) config.destSequences = [];
+      } else {
+        if (!config.sequences) config.sequences = [];
+      }
+      populateForm();
+    });
+  </script>
+</body>
+</html>

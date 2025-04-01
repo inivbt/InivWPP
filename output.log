@@ -1,0 +1,3713 @@
+./bot.js
+/* ./bot.js */
+
+const logger = require('./src/middlewares/logger');
+const { connectToWhatsApp } = require('./src/events/wa_connect');
+const { setSock } = require('./src/middlewares/connection_manager');
+const { handleContactsUpdate } = require('./src/events/wa_contacts_groups');
+const groupForwardManager = require('./src/events/group_forward_manager');
+const { kizuAlarmHandler, resumeAllLeadSequences } = require('./src/events/kizu_alarm_handler');
+const { bigLeoHandler } = require('./src/events/big_leo_handler');
+
+// DB-based message store with worker
+const {
+  startDBWorker,
+  ensureMessagesTable,
+  storeMessageInDB
+} = require('./src/utils/message_store');
+const { ensureLeadsResponseTable } = require('./src/utils/leads_data');
+
+// Load the Express server once
+const server = require('./src/server/server'); // We'll attach it once
+
+// Sessions to start
+const sessionNames = [
+  'Kizu_Assistant_Alarm',
+  'BIG',
+  'Kizu_Assistant_ONE',
+  'Kizuno18',
+  'Kizu_Assistant_TWO'
+];
+
+// Start the DB worker, and ensure required tables (do this once)
+startDBWorker();
+ensureMessagesTable();
+ensureLeadsResponseTable();
+
+/**
+ * Start a single bot session
+ */
+async function startBot(sessionName) {
+  try {
+    const sock = await connectToWhatsApp(sessionName);
+    setSock(sessionName, sock);
+
+    if (sessionName === 'Kizu_Assistant_Alarm') {
+      sock.ev.on('connection.update', (update) => {
+        const { connection } = update;
+        if (connection === 'open') {
+          logger.info(`[${sessionName}] starting scheduleMessages...`);
+          const scheduleMessages = require('./src/events/scheduled_messager');
+          scheduleMessages(sock);
+          // Resume incomplete lead sequences
+          resumeAllLeadSequences(sock);
+        }
+      });
+
+      // On new messages Store each message in DB
+      sock.ev.on('messages.upsert', async (messageUpdate) => {for (const m of messageUpdate.messages) {storeMessageInDB(sessionName, m); }});
+      
+      // Kizu alarm handling
+      sock.ev.on('messages.upsert', kizuAlarmHandler(sock));
+
+      // Also forward group messages
+      sock.ev.on('messages.upsert', groupForwardManager(sock));
+
+      sock.ev.on('contacts.update', handleContactsUpdate(sock));
+      logger.info(`[${sessionName}] Handlers attached.`);
+      
+    } else if (sessionName === 'BIG') {
+
+      // On new messages Store each message in DB
+      sock.ev.on('messages.upsert', async (messageUpdate) => {for (const m of messageUpdate.messages) {storeMessageInDB(sessionName, m); }});
+      sock.ev.on('contacts.update', handleContactsUpdate(sock));
+      logger.info(`[${sessionName}] Handlers attached.`);
+
+    } else if (sessionName === 'Kizu_Assistant_ONE') {
+
+      // On new messages Store each message in DB
+      sock.ev.on('messages.upsert', async (messageUpdate) => {for (const m of messageUpdate.messages) {storeMessageInDB(sessionName, m); }});
+      sock.ev.on('contacts.update', handleContactsUpdate(sock));
+      logger.info(`[${sessionName}] Handlers attached.`);
+
+    } else if (sessionName === 'Kizuno18') {
+
+      // On new messages Store each message in DB
+      sock.ev.on('messages.upsert', async (messageUpdate) => {for (const m of messageUpdate.messages) {storeMessageInDB(sessionName, m); }});
+      sock.ev.on('contacts.update', handleContactsUpdate(sock));
+      logger.info(`[${sessionName}] Handlers attached.`);
+
+    } else if (sessionName === 'Kizu_Assistant_TWO') {
+
+      // On new messages Store each message in DB
+      sock.ev.on('messages.upsert', async (messageUpdate) => {for (const m of messageUpdate.messages) {storeMessageInDB(sessionName, m); }});
+      sock.ev.on('contacts.update', handleContactsUpdate(sock));
+      logger.info(`[${sessionName}] Handlers attached.`);
+
+    } else {
+      logger.info(`[${sessionName}] No specific handlers found...`);
+    }
+
+    logger.info(`[${sessionName}] Bot started successfully.`);
+  } catch (error) {
+    logger.error(`[${sessionName}] Failed to start bot: ${error.message}`);
+  }
+}
+
+/**
+ * Start all sessions (in one process)
+ */
+function startAllBots() {
+  for (const name of sessionNames) {
+    startBot(name);
+  }
+}
+
+// Actually start them
+startAllBots();
+
+/*
+  NOTE:
+  - The server is required above (const server = require('./src/server/server'))
+    so it listens on port 2008 exactly once.
+  - DB worker is started once in this process, and used by all sessions.
+  - All sessions can see each other's sockets (getSock('IVAN'), etc.),
+    so group_forward_manager can forward across sessions.
+*/
+
+
+./config.json
+{
+  "BIG_NUMBER": "555183259850@s.whatsapp.net",
+  "ADMINS": [
+    "555183259850@s.whatsapp.net",
+    "5518981419052@s.whatsapp.net"
+  ],
+  "botId": "554874000121@s.whatsapp.net",
+  "scheduledMessages": {
+    "groups": [
+      {
+        "id": "556798537993-1558620404@g.us",
+        "intervalHours": 5.01,
+        "name": "GOLD MG"
+      },
+  {
+    "id": "120363292359224234@g.us",
+    "intervalHours": 72,
+    "name": "FEIRÃO"
+  }],
+      "messages": [
+        "💣 *ÚLTIMAS VAGAS!* \n\n🎮 Quer ver o MELHOR BOT em ação? \n🎥 *Manda um \"Oi\" no PV que te envio o vídeo agora!* \n\n*Funcionalidades:* \n- Cavebot Inteligente \n- Fishing Automático \n- Healing e Combos \n- Alarmes no WhatsApp \n- Party Hunt e Caught Shiny \n\n⏳ *Corre que tá acabando!*"
+        ,
+        "🔥 *VAGAS ACABANDO!* \n\n🎥 Quer ver como funciona? Só mandar \"Opa\" no PV que te envio o vídeo! \n\n*Funcionalidades incríveis:* \n- Cavebot e Healing automáticos \n- Fishing e Farming avançados \n- Caught Shiny \n- Party Hunt Inteligente \n- Alarmes no WhatsApp \n\n⏳ *Não fica de fora, poucas vagas disponíveis!*"
+],
+    "media": {
+      "images": "./media/images/",
+      "videos": "./media/videos/"
+    }
+  },
+  "ignoredUsers": [
+    "5519998416581@s.whatsapp.net",
+    "558796497751@s.whatsapp.net",
+    "5518997616231@s.whatsapp.net",
+    "5511966769999@s.whatsapp.net",
+    "553186250673@s.whatsapp.net",
+    "5511943980699@s.whatsapp.net",
+    "554891098977@s.whatsapp.net",
+    "554888473903@s.whatsapp.net",
+    "5524998737532@s.whatsapp.net",
+    "5519982025199@s.whatsapp.net",
+    "553198911455@s.whatsapp.net",
+    "556781237197@s.whatsapp.net",
+    "553299412845@s.whatsapp.net"
+  ]
+}
+
+
+./package.json
+{
+  "name": "whatsapp-bot",
+  "version": "1.0.0",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "@hapi/boom": "^10.0.1",
+    "@whiskeysockets/baileys": "^6.7.13",
+    "axios": "^1.7.9",
+    "express": "^5.0.1",
+    "node-cron": "^3.0.3",
+    "pino": "^9.6.0",
+    "pino-pretty": "^13.0.0",
+    "qrcode-terminal": "^0.12.0",
+    "mysql2": "^3.12.0",
+    "dotenv": "^16.4.7",
+    "google-translate-api-x": "^10.7.2",
+    "node-cache": "^5.1.2",
+    "link-preview-js": "^3.0.13",
+    "jimp": "^1.6.0",
+    "sharp": "^0.33.5",
+    "mysql-baileys": "^1.5.1" ,
+    "fluent-ffmpeg": "^2.1.3",
+    "tmp": "^0.2.3",
+    "@ffmpeg-installer/ffmpeg": "^1.1.0"
+  }
+}
+
+
+./data/bot_last_sent.json
+{}
+
+./data/leads_processing.json
+{}
+
+./src/events/big_leo_handler.js
+// ./src/events/big_leo_handler.js
+/**
+ * This is a personal handler for "Big Leo."
+ * Now using the new downloadAudioMessage() from baileys_utils to handle audio more cleanly.
+ */
+
+const path = require('path');
+const logger = require("../middlewares/logger");
+const {
+  isFromMe,
+  isAudioMessage,
+  isGroupMessage,
+  mentionAllInGroup,
+  isVoiceMessage,
+  editMessage,
+  downloadAudioMessage,
+  sendAudio, // We import the sendAudio function
+} = require("../middlewares/baileys_utils");
+const { extractMessageText } = require("../middlewares/message_functions");
+const { translateToEnglish } = require("../utils/translation_utils");
+
+function bigLeoHandler(sock) {
+  return async (messageUpdate) => {
+    const { type, messages } = messageUpdate;
+
+    if (type !== "notify" || !messages) return;
+
+    for (const msg of messages) {
+      if (!msg.key || !msg.message) continue;
+      // Only handle if the message is from me
+      if (!isFromMe(msg)) continue;
+
+      // Extract the text
+      const originalText = extractMessageText(msg);
+
+      // ==========================
+      // NEW CONDITION ADDED HERE!
+      // If the user typed "ok vou enviar agora, escuta tudo por favor",
+      // then send 'espanhol.mp3' as PTT audio in the same chat.
+      // ==========================
+      if (
+        originalText &&
+        originalText.toLowerCase().includes('ouve ai modo hard')
+      ) {
+        try {
+          await sendAudio(
+            sock,
+            msg.key.remoteJid,
+            path.join(__dirname, '../../media/gaudencio-hard.mp3'),
+            true // <-- ptt = true
+          );
+          logger.info("Sent ptt audio: gaudencio-hard.mp3");
+        } catch (error) {
+          logger.error("Error sending gaudencio-hard.mp3 as ptt:", error.message);
+        }
+        continue;
+      } else if (
+        originalText &&
+        originalText.toLowerCase().includes('ouve ai suave')
+      ) {
+        try {
+          await sendAudio(
+            sock,
+            msg.key.remoteJid,
+            path.join(__dirname, '../../media/gaudencio-low.mp3'),
+            true // <-- ptt = true
+          );
+          logger.info("Sent ptt audio: gaudencio-low.mp3");
+        } catch (error) {
+          logger.error("Error sending gaudencio-low.mp3 as ptt:", error.message);
+        }
+        continue;
+      } 
+      else if (
+        originalText && isGroupMessage(msg) &&
+        originalText.toLowerCase().includes('galera, ve ai')
+      ) {
+        try {
+          await mentionAllInGroup(
+            sock,
+            msg.key.remoteJid,
+            ".",
+            {
+              mentionInText: false}
+          );
+        } catch (error) {
+          logger.error("Error mention all:", error.message);
+        }
+        continue;
+      }
+    }
+  };
+}
+
+module.exports = { bigLeoHandler };
+
+
+./src/events/group_forward_manager.js
+// ./src/events/group_forward_manager.js
+
+const logger = require('../middlewares/logger');
+const { handleGroupMessage } = require('./group_manager_helper');
+const { getSock } = require('../middlewares/connection_manager');
+const config = require('../../config.json');
+const { Worker } = require('worker_threads'); // Worker usage
+
+// We'll keep a single counter for round-robin
+let turn = 0;
+
+/**
+ * Start a demonstration worker for group_forward_manager
+ */
+let groupForwardWorker;
+
+function startGroupForwardWorker() {
+  if (!groupForwardWorker) {
+    const workerPath = require('path').join(__dirname, '../workers/group_forward_manager_worker.js');
+    groupForwardWorker = new Worker(workerPath);
+
+    groupForwardWorker.on('message', (msg) => {
+      logger.debug(`[group_forward_manager Worker] Message: ${JSON.stringify(msg)}`);
+    });
+
+    groupForwardWorker.on('error', (err) => {
+      logger.error(`[group_forward_manager Worker] Error: ${err.message}`);
+    });
+
+    groupForwardWorker.on('exit', (code) => {
+      logger.warn(`[group_forward_manager Worker] Exited with code ${code}`);
+      groupForwardWorker = null;
+    });
+
+    logger.info('[group_forward_manager Worker] Spawned successfully.');
+  }
+}
+
+const forwardConfigs = [
+  {
+    name: 'MichelForward',
+    condition: (groupNameLower, sender, msg) =>
+      groupNameLower.includes('🔥 mg 🔥') || groupNameLower.includes('mercad'),
+    targetGroup: '120363358539799508@g.us'
+  },
+  {
+    name: 'PedroForward',
+    condition: (groupNameLower, sender, msg) =>
+      groupNameLower.includes('pxg market') && !groupNameLower.includes('chat'),
+    targetGroup: '120363384114593366@g.us'
+  },
+  {
+    name: 'NewTaoForward',
+    condition: (groupNameLower, sender, msg) =>
+      groupNameLower.includes('center') && !groupNameLower.includes('chat'),
+    targetGroup: '120363374624542091@g.us'
+  },
+];
+
+function groupForwardManager(sock) {
+  // Start our demonstration worker
+  startGroupForwardWorker();
+
+  return async (messageUpdate) => {
+    const forwardLogic = async (msg, groupName, sender, logMsg) => {
+      if (msg.key?.fromMe) return;
+      if (config.ignoredUsers.includes(sender)) return;
+
+      const alexSock = getSock('Kizu_Assistant_ONE');
+      const kizuAssistSock = getSock('Kizu_Assistant_TWO');
+      const availableSocks = [alexSock, kizuAssistSock].filter(Boolean);
+
+      const groupNameLower = groupName.toLowerCase();
+
+      for (const fwd of forwardConfigs) {
+        if (fwd.condition(groupNameLower, sender, msg)) {
+          if (availableSocks.length === 0) {
+            logger.warn(`No available sock to forward message from ${sender}.`);
+            continue;
+          }
+          const selectedSock = availableSocks[turn % availableSocks.length];
+
+          try {
+            await selectedSock.sendMessage(
+              fwd.targetGroup,
+              { text: logMsg },
+              { quoted: msg, contextInfo: { mentionedJid: [sender] } }
+            );
+            turn++;
+            logger.debug(
+              `Forwarded from ${sender} in [${groupName}] to ${fwd.targetGroup} [Config: ${fwd.name}]`
+            );
+          } catch (err) {
+            logger.error(
+              `Failed to forward from ${sender} to ${fwd.targetGroup} [Config: ${fwd.name}] => ${err.message}`
+            );
+          }
+        }
+      }
+    };
+
+    await handleGroupMessage(sock, messageUpdate, forwardLogic);
+  };
+}
+
+module.exports = groupForwardManager;
+
+
+./src/events/group_manager_helper.js
+// ./src/events/group_manager_helper.js
+
+const logger = require('../middlewares/logger');
+const { setParticipantName } = require('./wa_contacts_groups');
+const { getSock } = require('../middlewares/connection_manager');
+const {
+  extractMessageText,
+  updateMessageStats,
+  validateMessageLength,
+} = require('../middlewares/message_functions');
+const {
+  isGroupMessage,
+  isFromMe,
+  isImageMessage,
+  isVideoMessage,
+  isDocumentMessage,
+  isLinkMessage,
+} = require('../middlewares/baileys_utils');
+const path = require('path');
+const { Worker } = require('worker_threads'); // Worker usage
+
+let groupManagerWorker;
+
+function startGroupManagerWorker() {
+  if (!groupManagerWorker) {
+    const workerPath = path.join(__dirname, '../workers/group_manager_helper_worker.js');
+    groupManagerWorker = new Worker(workerPath);
+
+    groupManagerWorker.on('message', (msg) => {
+      logger.debug(`[group_manager_helper Worker] Message: ${JSON.stringify(msg)}`);
+    });
+
+    groupManagerWorker.on('error', (err) => {
+      logger.error(`[group_manager_helper Worker] Error: ${err.message}`);
+    });
+
+    groupManagerWorker.on('exit', (code) => {
+      logger.warn(`[group_manager_helper Worker] Exited with code ${code}`);
+      groupManagerWorker = null;
+    });
+
+    logger.info('[group_manager_helper Worker] Spawned successfully.');
+  }
+}
+
+/**
+ * Generic function to handle group messages.
+ * @param {Object} sock - The Baileys socket instance.
+ * @param {Object} messageUpdate - The Baileys message update event.
+ * @param {Function} forwardLogic - A callback that receives (msg, groupName, sender, text)
+ */
+async function handleGroupMessage(sock, messageUpdate, forwardLogic) {
+  // Start our demonstration worker
+  startGroupManagerWorker();
+
+  try {
+    const { type, messages } = messageUpdate;
+    if (type !== 'notify') return;
+
+    for (const msg of messages) {
+      if (!msg.key || !msg.message) continue;
+
+      const from = msg.key.remoteJid;
+      if (!isGroupMessage(msg)) continue; // skip if not group
+
+      let text = extractMessageText(msg).trim();
+      let timestamp = msg.messageTimestamp
+        ? msg.messageTimestamp * 1000
+        : Date.now();
+
+      try {
+        text = validateMessageLength(text);
+      } catch (error) {
+        logger.warn(`Message from ${from} exceeds length limit: ${error.message}`);
+        continue;
+      }
+
+      if (!text) {
+        let mediaTypes = [
+          isImageMessage(msg),
+          isVideoMessage(msg),
+          isDocumentMessage(msg),
+          isLinkMessage(msg),
+        ];
+        if (!mediaTypes.some(Boolean)) {
+          logger.debug('No text or recognized media found in this message.');
+          continue;
+        }
+      }
+
+      const participantName = msg.pushName || 'Unknown User';
+      await setParticipantName(msg.key.participant || from, participantName);
+
+      let groupName = 'Unknown Group';
+      try {
+        const metadata = await sock.groupMetadata(from);
+        groupName = metadata.subject || 'Unknown Group';
+      } catch (err) {
+        logger.warn(`Failed to fetch group metadata for ${from}: ${err.message}`);
+      }
+
+      let logMsg = `[GROUP]\n[${groupName}]\n[${participantName}](${(msg.key.participant || from).split('@')[0]})\n\n${text}`;
+
+      await updateMessageStats(sock, from, msg.key.participant || from, text, timestamp, groupName);
+
+      if (!isFromMe(msg) && typeof forwardLogic === 'function') {
+        await forwardLogic(msg, groupName, (msg.key.participant || from), logMsg);
+      }
+
+      logger.debug(logMsg);
+    }
+  } catch (error) {
+    logger.error(`Error processing incoming group message: ${error.message}`);
+  }
+}
+
+module.exports = { handleGroupMessage };
+
+
+./src/events/kizu_alarm_handler.js
+// ./src/events/kizu_alarm_handler.js
+
+const path = require('path');
+const fs = require('fs').promises;
+const { isPrivateMessage, isFromMe, isGroupMessage, isUserMessage, updatePresence } = require('../middlewares/baileys_utils');
+const logger = require('../middlewares/logger');
+const db = require('../utils/db');
+const { isUserResponded, markUserResponded } = require('../utils/leads_data');
+const { ensureUser } = require('./wa_contacts_groups');
+const { Worker } = require('worker_threads');
+const { extractMessageText } = require('../middlewares/message_functions');
+
+// Path to the leads processing JSON file
+const leadsProcessingPath = path.join(__dirname, '../../data/leads_processing.json');
+
+// In-memory cache for leads processing
+let leadsProcessing = {};
+
+/**
+ * Start a kizuAlarmHandler worker for demonstration.
+ */
+let kizuAlarmWorker;
+
+function startKizuAlarmWorker() {
+    if (!kizuAlarmWorker) {
+        const workerPath = path.join(__dirname, '../workers/kizu_alarm_handler_worker.js');
+        kizuAlarmWorker = new Worker(workerPath);
+
+        kizuAlarmWorker.on('message', (msg) => {
+            logger.debug(`[kizu_alarm_handler Worker] Message: ${JSON.stringify(msg)}`);
+        });
+
+        kizuAlarmWorker.on('error', (err) => {
+            logger.error(`[kizu_alarm_handler Worker] Error: ${err.message}`);
+        });
+
+        kizuAlarmWorker.on('exit', (code) => {
+            logger.warn(`[kizu_alarm_handler Worker] Exited with code ${code}`);
+            kizuAlarmWorker = null;
+        });
+
+        logger.info('[kizu_alarm_handler Worker] Spawned successfully.');
+    }
+}
+
+// Pre-load descriptions from text files for demonstration
+const descriptions = {
+    video_shiny: '',
+    pescador: ''
+};
+
+const descriptionsPaths = {
+    video_shiny: path.join(__dirname, '../../media/leads_responses/video_shiny.txt'),
+    pescador: path.join(__dirname, '../../media/leads_responses/pescador.txt')
+};
+
+// Load leads_processing.json into memory
+async function loadLeadsProcessing() {
+    try {
+        const data = await fs.readFile(leadsProcessingPath, 'utf-8');
+        leadsProcessing = JSON.parse(data);
+    } catch (error) {
+        if (error.code === 'ENOENT') {
+            leadsProcessing = {};
+            await saveLeadsProcessing();
+        } else {
+            logger.error(`Failed to load leads_processing.json: ${error.message}`);
+        }
+    }
+}
+
+// Save leadsProcessing object to leads_processing.json
+async function saveLeadsProcessing() {
+    try {
+        await fs.writeFile(leadsProcessingPath, JSON.stringify(leadsProcessing, null, 2));
+    } catch (error) {
+        logger.error(`Failed to save leads_processing.json: ${error.message}`);
+    }
+}
+
+// Kick off the data load at startup
+loadLeadsProcessing();
+
+// Load descriptions into memory
+async function loadDescriptions() {
+    try {
+        const videoShinyExists = await fs.access(descriptionsPaths.video_shiny).then(() => true).catch(() => false);
+        if (videoShinyExists) {
+            descriptions.video_shiny = await fs.readFile(descriptionsPaths.video_shiny, 'utf-8');
+        }
+
+        const pescadorExists = await fs.access(descriptionsPaths.pescador).then(() => true).catch(() => false);
+        if (pescadorExists) {
+            descriptions.pescador = await fs.readFile(descriptionsPaths.pescador, 'utf-8');
+        }
+    } catch (error) {
+        logger.error(`Error loading descriptions: ${error.message}`);
+    }
+}
+loadDescriptions();
+
+/**
+ * Checks if a user is in 'servers' table
+ */
+async function isUserInServers(userJid) {
+    try {
+        const query = 'SELECT id FROM servers WHERE owner_jid = ? AND is_active = TRUE';
+        const [rows] = await db.execute(query, [userJid]);
+        return rows.length > 0;
+    } catch (error) {
+        logger.error(`Error checking servers: ${error.message}`);
+        return false;
+    }
+}
+
+/**
+ * Checks if user is in trade groups
+ */
+async function isInTradeGroups(userId) {
+    try {
+        const query = `
+      SELECT 1
+      FROM group_members gm
+      JOIN groups g ON gm.group_id = g.id
+      WHERE gm.user_id = ?
+      AND (
+          LOWER(g.group_name) LIKE '%🔥 mg 🔥%' 
+          OR LOWER(g.group_name) LIKE '%mercad%'
+          OR (g.group_name LIKE '%PXG MARKET%')
+          OR (LOWER(g.group_name) LIKE '%center%')
+      )
+      LIMIT 1
+    `;
+        const [rows] = await db.execute(query, [userId]);
+        return rows.length > 0;
+    } catch (error) {
+        logger.error(`Error checking groups for user ${userId}: ${error.message}`);
+        return false;
+    }
+}
+
+function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getPresenceForMessage(step) {
+    switch (step.type) {
+        case 'audio':
+            return step.ptt ? 'recording' : 'available';
+        case 'text':
+        case 'link':
+        case 'media':
+        case 'contact':
+            return 'composing';
+        default:
+            return 'available';
+    }
+}
+
+/**
+ * The lead sequence
+ */
+async function sendLeadSequence(sock, userJid) {
+    // Worker usage is purely demonstrative, not deeply integrated
+    if (kizuAlarmWorker) {
+        kizuAlarmWorker.postMessage({ action: 'startLeadSequence', userJid });
+    }
+
+    try {
+        if (!(userJid in leadsProcessing)) {
+            leadsProcessing[userJid] = 0;
+            await saveLeadsProcessing();
+        }
+
+        const sequence = [
+            // ... same steps as before
+            {
+                type: 'audio',
+                path: path.join(__dirname, '../../media/leads_responses/introaudio.mp3'),
+                ptt: true,
+                caption: null,
+                delay: 60000,
+                log: 'Sent intro audio'
+            },
+            {
+                type: 'link',
+                content: {
+                    text: 'o bot faz: Outland, orre e coleta de recursos - mega boss e shiny com perfeição\nhttps://www.youtube.com/watch?v=wo4SpRMQ2B8',
+                    title: 'Outland, orre e coleta de recursos - mega boss e shiny com perfeição',
+                    body: 'Fishing Automático, Healing Preciso, Alarmes via WhatsApp, Party Hunt e Farming Avançados',
+                    mediaUrl: 'https://youtu.be/wo4SpRMQ2B8',
+                    sourceUrl: 'https://youtu.be/wo4SpRMQ2B8',
+                    thumbnailUrl: 'https://i.ytimg.com/vi/wo4SpRMQ2B8/hqdefault.jpg'
+                },
+                delay: 60000,
+                log: 'Sent link with preview'
+            },
+            {
+                type: 'media',
+                mediaType: 'video',
+                path: path.join(__dirname, '../../media/leads_responses/video_shiny.mp4'),
+                description: descriptions.video_shiny,
+                delay: 60000,
+                log: 'Sent local video + caption'
+            },
+            {
+                type: 'media',
+                mediaType: 'image',
+                path: path.join(__dirname, '../../media/leads_responses/pescador.jpg'),
+                description: descriptions.pescador,
+                delay: 60000,
+                log: 'Sent image'
+            },
+            {
+                type: 'text',
+                content: `Não tem vitalício, nós temos custos mensais pra: 
+- nos manter como o melhor bot do mercado
+- manter o melhor ping na sua máquina
+- updates e novidades constantes
+- alarmes no whatsapp
+- bot privado apenas para os melhores
+- custos de IA terceirizada
+- manter toda a segurança que proporcionamos
+- poder usar o bot com seu Pc desligado
+- poder acessar o bot pelo celular
+- o bot responder GM e pisar na seta`,
+                delay: 60000,
+                log: 'Sent text message (custos mensais)'
+            },
+            {
+                type: 'text',
+                content:
+                    'o preço é 250 reais mensal porque o bot não é pra usuário casual, só pra quem Farma de verdade, da pra fazer tranquilo 1200 por mês com o bot quem sabe usar\n*atualmente o bot não faz NW, estamos trabalhando nisso para esse ano ainda!*',
+                delay: 60000,
+                log: 'Sent text message (preço)'
+            },
+            {
+                type: 'audio',
+                path: path.join(__dirname, '../../media/leads_responses/farm_char_250.mp3'),
+                ptt: true,
+                caption: 'como o pessoal faz grana',
+                delay: 60000,
+                log: 'Sent farm audio'
+            },
+            {
+                type: 'audio',
+                path: path.join(__dirname, '../../media/leads_responses/whoIam.mp3'),
+                ptt: true,
+                caption: 'quem sou eu',
+                delay: 60000,
+                log: 'Sent whoIam audio'
+            },
+            {
+                type: 'audio',
+                path: path.join(__dirname, '../../media/leads_responses/bansResume.mp3'),
+                ptt: true,
+                caption: 'resumo sobre bans',
+                delay: 60000,
+                log: 'Sent bansResume audio'
+            },
+            {
+                type: 'audio',
+                path: path.join(__dirname, '../../media/leads_responses/finalAudio.mp3'),
+                ptt: true,
+                caption: 'como funciona o acesso',
+                delay: 60000,
+                log: 'Sent final audio'
+            },
+            {
+                type: 'text',
+                content: `Se você quer prosseguir com a compra ou tirar mais duvidas comigo, vou te passar meu contato.
+Pois aqui encerra nossa conversa porque esse whatsapp aqui é de pré vendas tudo bem?
+
+Lá eu vou te enviar o acesso ao grupo de whatsapp onde você vai conseguir falar com todos usuarios e também vou te passar todos links de acesso e tutorial.`,
+                delay: 60000,
+                log: 'Sent last message'
+            },
+            {
+                type: 'contact',
+                phoneNumber: '+555183259850',
+                name: 'Big Léo',
+                delay: 0,
+                log: 'Sent Big Léo contact'
+            }
+        ];
+
+        let currentIndex = leadsProcessing[userJid];
+
+        while (currentIndex < sequence.length) {
+            const step = sequence[currentIndex];
+
+            const presence = getPresenceForMessage(step);
+            await updatePresence(sock, presence);
+            logger.info(`Presence set to '${presence}' for ${userJid}`);
+
+            if (presence === 'composing' || presence === 'recording') {
+                await delay(2000);
+            }
+
+            switch (step.type) {
+                case 'audio':
+                    {
+                        const { sendAudio } = require('../middlewares/baileys_utils');
+                        await sendAudio(sock, userJid, step.path, step.ptt, step.caption);
+                    }
+                    break;
+                case 'link':
+                    {
+                        const { sendLinkWithPreview } = require('../middlewares/baileys_utils');
+                        await sendLinkWithPreview(sock, userJid, step.content);
+                    }
+                    break;
+                case 'media':
+                    {
+                        const { sendMedia } = require('../middlewares/baileys_utils');
+                        await sendMedia(sock, userJid, step.path, step.mediaType, step.description);
+                    }
+                    break;
+                case 'text':
+                    await sock.sendMessage(userJid, { text: step.content });
+                    break;
+                case 'contact':
+                    {
+                        const { sendContact } = require('../middlewares/baileys_utils');
+                        await sendContact(sock, userJid, step.phoneNumber, step.name);
+                    }
+                    break;
+                default:
+                    logger.warn(`Unknown step type: ${step.type}`);
+            }
+
+            logger.info(`${step.log} to ${userJid}`);
+
+            currentIndex += 1;
+            leadsProcessing[userJid] = currentIndex;
+            await saveLeadsProcessing();
+
+            await updatePresence(sock, 'available');
+            if (step.delay > 0) {
+                await delay(step.delay);
+            }
+        }
+
+        delete leadsProcessing[userJid];
+        await saveLeadsProcessing();
+        logger.info(`Lead sequence completed for ${userJid}, removed from leads_processing.json.`);
+    } catch (error) {
+        logger.error(`Error in sendLeadSequence for ${userJid}: ${error.message}`);
+    }
+}
+
+function kizuAlarmHandler(sock) {
+    // Start worker
+    startKizuAlarmWorker();
+
+    return async (messageUpdate) => {
+        try {
+            const { type, messages } = messageUpdate;
+            if (type !== 'notify') return;
+
+            for (const msg of messages) {
+                if (!msg.key || !msg.message) continue;
+                if (isGroupMessage(msg)) continue;     // skip groups                
+                if (isFromMe(msg)) {
+                    const textSentByBot = extractMessageText(msg).toLowerCase();
+                    
+                    if (textSentByBot === 'opa, vou te explicar melhor') {
+                        const from = msg.key.remoteJid; 
+                        sendLeadSequence(sock, from);
+                        logger.info(`LeadSequence disparado após enviar "opa, vou te explicar melhor" para ${from}`);
+                    }
+                    continue;
+                }
+                if (!isPrivateMessage(msg)) continue;  // skip if not private
+                if (!isUserMessage(msg)) continue;     // skip weird cases
+
+                const from = msg.key.remoteJid;
+
+                if (from in leadsProcessing) {
+                    logger.debug(`User ${from} is already in progress.`);
+                    continue;
+                }
+
+                if (await isUserInServers(from)) {
+                    logger.debug(`User ${from} is in servers, skipping lead sequence.`);
+                    continue;
+                }
+
+                const userId = await ensureUser(from);
+                if (!await isInTradeGroups(userId)) {
+                    logger.debug(`User ${from} not in trade groups, skipping.`);
+                    continue;
+                }
+
+                if (await isUserResponded(from)) {
+                    logger.debug(`User ${from} already responded, skipping lead sequence.`);
+                    continue;
+                }
+
+                await markUserResponded(from);
+                logger.info(`Marked user ${from} as responded.`);
+
+                sendLeadSequence(sock, from);
+            }
+        } catch (error) {
+            logger.error(`Error in kizuAlarmHandler: ${error.message}`);
+        }
+    };
+}
+
+async function resumeAllLeadSequences(sock) {
+    startKizuAlarmWorker();
+    for (const userJid in leadsProcessing) {
+        const currentIndex = leadsProcessing[userJid];
+        if (typeof currentIndex === 'number') {
+            logger.info(`Resuming lead sequence for ${userJid} at index ${currentIndex}`);
+            sendLeadSequence(sock, userJid);
+        }
+    }
+}
+
+module.exports = {
+    kizuAlarmHandler,
+    resumeAllLeadSequences
+};
+
+
+./src/events/scheduled_messager.js
+// ./src/events/scheduled_messager.js
+
+const fs = require('fs');
+const path = require('path');
+const logger = require('../middlewares/logger');
+const { sendMessage } = require('../middlewares/baileys_utils');
+const { Worker } = require('worker_threads'); // Worker usage
+
+/**
+ * Simple worker initialization for demonstration.
+ * We spawn a separate worker that currently does nothing special.
+ * You can extend it to handle scheduling tasks.
+ */
+let scheduleMessagesWorker;
+
+function startScheduleMessagesWorker() {
+    if (!scheduleMessagesWorker) {
+        const workerPath = path.join(__dirname, '../workers/schedule_messager_worker.js');
+        scheduleMessagesWorker = new Worker(workerPath);
+
+        scheduleMessagesWorker.on('message', (msg) => {
+            logger.debug(`[schedule_messager Worker] Message: ${JSON.stringify(msg)}`);
+            // For example, if worker requests "send" action, we could handle it here
+        });
+
+        scheduleMessagesWorker.on('error', (err) => {
+            logger.error(`[schedule_messager Worker] Error: ${err.message}`);
+        });
+
+        scheduleMessagesWorker.on('exit', (code) => {
+            logger.warn(`[schedule_messager Worker] Exited with code ${code}`);
+            scheduleMessagesWorker = null;
+        });
+
+        logger.info('[schedule_messager Worker] Spawned successfully.');
+    }
+}
+
+/**
+ * Helper function to select a random item from an array
+ * @param {Array} arr - The array to select from
+ * @returns {*} - A randomly selected item
+ */
+function getRandomItem(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+}
+
+/**
+ * This function adjusts the next scheduled time if:
+ * - The group name contains "PXG MARKET" (case-insensitive).
+ * - The next time is within 30min after one of the critical hours: 00, 09, 12, 15, 18, or 21.
+ * It pushes the schedule to HH:30 in those cases.
+ * @param {string} groupName
+ * @param {number} nextMs - The next timestamp (in ms) the message is scheduled
+ * @returns {number} - Potentially adjusted timestamp (in ms)
+ */
+function adjustIfPxgMarket(groupName, nextMs) {
+    // Check if it's a PXG MARKET group
+    if (!groupName.toLowerCase().includes('pxg market')) {
+        return nextMs;
+    }
+
+    // Convert to local date/time in America/Sao_Paulo
+    const dateLocalString = new Date(nextMs).toLocaleString('en-US', {
+        timeZone: 'America/Sao_Paulo',
+    });
+    const localDate = new Date(dateLocalString);
+
+    const hour = localDate.getHours();
+    const minute = localDate.getMinutes();
+
+    // Critical hours
+    const criticalHours = [0, 9, 12, 15, 18, 21];
+
+    // If the scheduled time is inside the first 30 min of a critical hour, push to HH:30
+    if (criticalHours.includes(hour) && minute < 30) {
+        localDate.setMinutes(30);
+        localDate.setSeconds(0);
+        localDate.setMilliseconds(0);
+        return localDate.getTime();
+    }
+    return nextMs;
+}
+
+/**
+ * Function to schedule and send messages to WhatsApp groups
+ * @param {Object} sock - The Baileys WhatsApp socket instance
+ */
+function scheduleMessages(sock) {
+    // Start our demonstration worker
+    startScheduleMessagesWorker();
+
+    // Import configuration from config.json
+    const configPath = path.join(__dirname, '../../config.json');
+    if (!fs.existsSync(configPath)) {
+        logger.error('config.json not found!');
+        return;
+    }
+    const config = require(configPath);
+
+    const { scheduledMessages } = config;
+
+    const { groups, messages, media } = scheduledMessages;
+
+    // Paths to media directories
+    const imagesDir = path.resolve(__dirname, '../../' + media.images);
+    const videosDir = path.resolve(__dirname, '../../' + media.videos);
+
+    // Verify media directories exist
+    if (!fs.existsSync(imagesDir)) {
+        logger.error(`Images directory not found: ${imagesDir}`);
+        return;
+    }
+
+    if (!fs.existsSync(videosDir)) {
+        logger.error(`Videos directory not found: ${videosDir}`);
+        return;
+    }
+
+    // List image and video files
+    const imageFiles = fs.readdirSync(imagesDir).filter(file => /\.(jpe?g|png|gif|bmp)$/i.test(file));
+    const videoFiles = fs.readdirSync(videosDir).filter(file => /\.(mp4|mov|avi|mkv)$/i.test(file));
+
+    if (imageFiles.length === 0 && videoFiles.length === 0) {
+        logger.error('No image or video files found in the specified media directories.');
+        return;
+    }
+
+    // Path to the fixed thumbnail image used in quoted messages
+    const thumbnailPath = path.join(__dirname, '../../media/kizu.jpg');
+    if (!fs.existsSync(thumbnailPath)) {
+        logger.error('Thumbnail "kizu.jpg" not found in ./media/');
+        return;
+    }
+    const thumbnailBuffer = fs.readFileSync(thumbnailPath);
+
+    // Path to the bot_last_sent.json
+    const lastSentPath = path.join(__dirname, '../../data/bot_last_sent.json');
+
+    // Load last sent timestamps
+    let lastSentData = {};
+    if (fs.existsSync(lastSentPath)) {
+        try {
+            lastSentData = JSON.parse(fs.readFileSync(lastSentPath, 'utf-8'));
+        } catch (error) {
+            logger.error('Error parsing bot_last_sent.json:', error);
+            lastSentData = {};
+        }
+    } else {
+        // Initialize the file if it doesn't exist
+        fs.writeFileSync(lastSentPath, JSON.stringify({}, null, 2), 'utf-8');
+        lastSentData = {};
+    }
+
+    /**
+     * Function to save the last sent timestamps
+     */
+    function saveLastSentData() {
+        fs.writeFileSync(lastSentPath, JSON.stringify(lastSentData, null, 2), 'utf-8');
+    }
+
+    /**
+     * Function to get the last timestamp the bot sent a message to a group
+     * @param {string} groupId - The ID of the group
+     * @returns {number} - The last timestamp in milliseconds
+     */
+    function getLastTimestamp(groupId) {
+        return lastSentData[groupId] || 0;
+    }
+
+    /**
+     * Function to update the last sent timestamp after sending a message
+     * @param {string} groupId - The ID of the group
+     */
+    function updateLastTimestamp(groupId) {
+        lastSentData[groupId] = Date.now();
+        saveLastSentData();
+        logger.debug(`lastTimestamp updated for group ${groupId}`);
+    }
+
+    // Iterate over each scheduled group
+    groups.forEach(group => {
+        const groupId = group.id;
+        const intervalHours = group.intervalHours;
+        const name = group.name; // We'll use the group name for the PXG MARKET check
+        const intervalMs = intervalHours * 60 * 60 * 1000;
+
+        // Get the last timestamp the bot sent a message to the group
+        const lastTimestamp = getLastTimestamp(groupId);
+        const now = Date.now();
+        const elapsedTime = now - lastTimestamp;
+        let initialDelay = intervalMs - elapsedTime;
+
+        // If the interval has already passed since the last message, send immediately
+        if (elapsedTime >= intervalMs) {
+            initialDelay = 0;
+        } else if (initialDelay < 0) {
+            initialDelay = 0; // Ensure it's not negative
+        }
+
+        // Calculate the raw time for the next message
+        const nextScheduledTime = now + initialDelay;
+
+        // Adjust if PXG MARKET group is within the 30-minute window after 00,09,12,15,18,21
+        const adjustedTime = adjustIfPxgMarket(name, nextScheduledTime);
+        let finalDelay = adjustedTime - now;
+        if (finalDelay < 0) {
+            finalDelay = 0; // Safety check
+        }
+
+        /**
+         * Function to send the message
+         */
+        const sendScheduledMessage = async () => {
+            try {
+                // Select a random message from the list
+                let rndMessage = getRandomItem(messages);
+                let selectedMessage = `\n${rndMessage}`;
+
+                // Randomly decide to send an image or a video
+                const sendMediaType = Math.random() < 0.5 ? 'image' : 'video';
+
+                let mediaPath = '';
+                let mediaMessage = {};
+
+                if (sendMediaType === 'image' && imageFiles.length > 0) {
+                    // Select a random image
+                    const selectedImage = getRandomItem(imageFiles);
+                    mediaPath = path.join(imagesDir, selectedImage);
+
+                    mediaMessage = {
+                        image: { url: mediaPath },
+                        caption: selectedMessage,
+                        linkPreview: true,
+                    };
+                } else if (sendMediaType === 'video' && videoFiles.length > 0) {
+                    // Select a random video
+                    const selectedVideo = getRandomItem(videoFiles);
+                    mediaPath = path.join(videosDir, selectedVideo);
+
+                    mediaMessage = {
+                        video: { url: mediaPath },
+                        caption: selectedMessage,
+                        linkPreview: true,
+                    };
+                } else if (imageFiles.length > 0) {
+                    // If no videos are available, send an image
+                    const selectedImage = getRandomItem(imageFiles);
+                    mediaPath = path.join(imagesDir, selectedImage);
+
+                    mediaMessage = {
+                        image: { url: mediaPath },
+                        caption: selectedMessage,
+                        linkPreview: true,
+                    };
+                } else if (videoFiles.length > 0) {
+                    // If no images are available, send a video
+                    const selectedVideo = getRandomItem(videoFiles);
+                    mediaPath = path.join(videosDir, selectedVideo);
+
+                    mediaMessage = {
+                        video: { url: mediaPath },
+                        caption: selectedMessage,
+                        linkPreview: true,
+                    };
+                } else {
+                    // No media available to send
+                    logger.warn(`No media available to send in group: ${groupId}`);
+                    return;
+                }
+
+                await sock.sendMessage(groupId, mediaMessage, {
+                    quoted: {
+                        key: { fromMe: false, participant: "0@s.whatsapp.net" },
+                        message: {
+                            extendedTextMessage: {
+                                text: `whatsapp-bot™️`,
+                                title: `TM`,
+                                jpegThumbnail: thumbnailBuffer,
+                            },
+                        },
+                    },
+                });
+
+                logger.debug(`Message sent to group ${groupId}: "${selectedMessage}" (${sendMediaType})`);
+
+                // Update the last sent timestamp after successful sending
+                updateLastTimestamp(groupId);
+            } catch (error) {
+                logger.error(`Error sending message to group ${groupId}:`, error);
+            }
+        };
+
+        // Schedule the first message with setTimeout (using finalDelay)
+        setTimeout(() => {
+            sendScheduledMessage(); // Send the first message
+
+            // Schedule subsequent messages with setInterval
+            setInterval(sendScheduledMessage, intervalMs);
+        }, finalDelay);
+
+        logger.info(`Scheduled messages for group ${groupId} every ${intervalHours} hours. Initial delay: ${finalDelay / 1000} seconds.`);
+    });
+}
+
+module.exports = scheduleMessages;
+
+
+./src/events/wa_connect.js
+/* ./src/events/wa_connect.js 
+   Merged from the old connect.js + connection.js 
+*/
+
+const { 
+    makeWASocket, 
+    makeCacheableSignalKeyStore, 
+    fetchLatestBaileysVersion, 
+    Browsers, 
+    DisconnectReason 
+  } = require('@whiskeysockets/baileys');
+  const { Boom } = require('@hapi/boom');
+  const logger = require('../middlewares/logger');
+  const NodeCache = require('node-cache');
+  const path = require('path');
+  const dotenv = require('dotenv');
+  const axios = require('axios');
+  const { setSock } = require('../middlewares/connection_manager');
+  
+  // DB usage
+  const db = require('../utils/db');
+  
+  // For MySQL-based auth
+  const { useMySQLAuthState } = require('mysql-baileys');
+  
+  // Our DB-based message store for poll decryption/resends
+  const { getMessageFromStore } = require('../utils/message_store');
+  
+  // For group caching; used in groupMetadata fetch
+  const groupCache = new NodeCache({
+    stdTTL: 5 * 60, // 5 minutes
+    useClones: false
+  });
+  
+  // Load environment variables from ../../data/.env
+  dotenv.config({ path: path.join(__dirname, '../../data/.env') });
+  
+  // We'll import the newly unified group/user logic for ensuring membership
+  const { ensureUser, ensureGroup, ensureGroupMember, updateGroupNameIfUnknown } = require('./wa_contacts_groups');
+  
+  // Generate QR code in terminal
+  const generateQRCode = require('../utils/qrcode');
+  
+  /**
+   * Creates a Baileys socket instance for a given session name,
+   * using MySQL-based auth state and caching.
+   *
+   * @param {string} sessionName
+   * @returns {Promise<Object>} - The Baileys socket instance
+   */
+  async function connectToWhatsApp(sessionName) {
+    // MySQL-based auth
+    const { state, saveCreds } = await useMySQLAuthState({
+      session: sessionName,
+      host: 'mariadb',
+      port: 3306,
+      user: 'mariadbuser',
+      password: 'mariadbpass',
+      database: 'baileys',
+      tableName: 'auth',
+    });
+  
+    // Fetch WA version
+    const { version, isLatest } = await fetchLatestBaileysVersion();
+    logger.info(`Using WhatsApp version: ${version.join('.')}, isLatest: ${isLatest}`);
+  
+    const P = require('pino')({ level: 'silent' });
+  
+    const sock = makeWASocket({
+      logger: P,
+      auth: {
+        creds: state.creds,
+        keys: makeCacheableSignalKeyStore(state.keys, P),
+      },
+      printQRInTerminal: false,
+      version,
+      defaultQueryTimeoutMs: undefined,
+      browser: Browsers.macOS('Desktop'),
+      markOnlineOnConnect: true,
+      generateHighQualityLinkPreview: true,
+      syncFullHistory: true,
+      downloadHistory: true,
+      mobile: false,
+      shouldSyncHistoryMessage: () => true,
+      // group metadata caching
+      cachedGroupMetadata: async (jid) => groupCache.get(jid),
+      // help with poll decrypt or message resend
+      getMessage: async (key) => getMessageFromStore(sessionName, key),
+    });
+  
+    // On auth state updates
+    sock.ev.on('creds.update', saveCreds);
+  
+    // On connection update
+    sock.ev.on('connection.update', (update) => {
+      const { connection, lastDisconnect, qr } = update;
+      if (qr) {
+        generateQRCode(qr);
+      }
+      if (connection === 'close') {
+        const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
+        const shouldReconnect = reason !== DisconnectReason.loggedOut;
+        logger.error(
+          `connection closed for session [${sessionName}] => reason: ${reason}, reconnecting? ${shouldReconnect}`
+        );
+        if (shouldReconnect) {
+          connectToWhatsApp(sessionName).then(realSock => { setSock(sessionName, realSock); })
+          .catch(err => { logger.error(`[${sessionName}] Reconnect error: ${err.message}`); });
+        }
+      }
+    });
+  
+    // On group updates
+    sock.ev.on('groups.update', async (updates) => {
+      for (const event of updates) {
+        try {
+          // refresh cache
+          const metadata = await sock.groupMetadata(event.id);
+          groupCache.set(event.id, metadata);
+  
+          // if we had 'Unknown Group' in DB, update if new name is provided
+          if (event.subject) {
+            await updateGroupNameIfUnknown(event.id, event.subject);
+          }
+        } catch (err) {
+          logger.warn(`Failed to fetch groupMetadata for ${event.id}: ${err.message}`);
+        }
+      }
+    });
+  
+    // On participant changes, re-fetch group metadata and ensure membership in DB
+    sock.ev.on('group-participants.update', async (event) => {
+      try {
+        const metadata = await sock.groupMetadata(event.id);
+        groupCache.set(event.id, metadata);
+  
+        // Ensure the group is in DB
+        const groupId = await ensureGroup(event.id, metadata.subject || 'Unknown Group');
+  
+        // For each participant, ensure user + membership
+        for (const p of metadata.participants) {
+          const userId = await ensureUser(p.id);
+          await ensureGroupMember(groupId, userId);
+        }
+      } catch (err) {
+        logger.warn(`Failed group-participants.update for ${event.id}: ${err.message}`);
+      }
+    });
+  
+    return sock;
+  }
+  
+  module.exports = {
+    connectToWhatsApp,
+    groupCache,
+  };
+  
+
+./src/events/wa_contacts_groups.js
+/* ./src/events/wa_contacts_groups.js
+   Merged from contacts_update.js, group_data.js, user_data.js, participant_cache.js
+*/
+
+const db = require('../utils/db');
+const logger = require('../middlewares/logger');
+
+/**
+ * PARTICIPANT CACHE (in-memory)
+ */
+const participantCache = new Map();
+
+/**
+ * Set participant name in the local cache and update the DB
+ */
+async function setParticipantName(participantJid, name) {
+  participantCache.set(participantJid, name);
+
+  try {
+    // ensure user
+    await ensureUser(participantJid, name);
+    // update user name
+    await updateUserName(participantJid, name);
+  } catch (err) {
+    logger.error(`setParticipantName: error ensuring/updating user for ${participantJid}: ${err.message}`);
+  }
+}
+
+/**
+ * Baileys "contacts.update" equivalent function
+ * Instead of a separate file, we unify it here.
+ * 
+ * Usage:
+ *    sock.ev.on('contacts.update', handleContactsUpdate(sock));
+ */
+function handleContactsUpdate(sock) {
+  return async (update) => {
+    for (const contact of update) {
+      const { id, notify } = contact;
+      if (!id) continue;
+
+      if (notify) {
+        await setParticipantName(id, notify);
+        logger.debug(`Updated participant cache: [${id}] -> ${notify}`);
+      } else {
+        // try from store
+        try {
+          if (sock?.store?.contacts && sock.store.contacts[id]) {
+            const contactInfo = sock.store.contacts[id];
+            const userName = contactInfo.name || contactInfo.notify || 'Unknown User';
+            await setParticipantName(id, userName);
+            logger.debug(`Fetched from store: [${id}] -> ${userName}`);
+          } else {
+            // fallback
+            await setParticipantName(id, 'Unknown User');
+          }
+        } catch (err) {
+          logger.error(`handleContactsUpdate: error for ${id}: ${err.message}`);
+        }
+      }
+    }
+  };
+}
+
+/**
+ * GROUPS / USERS DB LOGIC
+ */
+
+/**
+ * Ensure a group row in DB
+ * @param {String} groupJid 
+ * @param {String} groupName 
+ * @returns groupId (int)
+ */
+async function ensureGroup(groupJid, groupName = 'Unknown Group') {
+  try {
+    const sql = 'SELECT id, group_name FROM groups WHERE group_jid = ?';
+    const [rows] = await db.execute(sql, [groupJid]);
+
+    if (rows.length > 0) {
+      const existingId = rows[0].id;
+      const existingName = rows[0].group_name || '';
+
+      // if we have a better name now, update it
+      if (existingName === 'Unknown Group' && groupName !== 'Unknown Group') {
+        await updateGroupNameById(existingId, groupName);
+      }
+      return existingId;
+    } else {
+      // insert
+      const insSql = 'INSERT INTO groups (group_jid, group_name) VALUES (?, ?)';
+      const [res] = await db.execute(insSql, [groupJid, groupName]);
+      return res.insertId;
+    }
+  } catch (err) {
+    logger.error(`ensureGroup error: ${err.message}`);
+    throw err;
+  }
+}
+
+/**
+ * If the group name in DB is "Unknown Group" and a newName is provided, update it
+ */
+async function updateGroupNameIfUnknown(groupJid, newName) {
+  try {
+    const sql = 'SELECT id, group_name FROM groups WHERE group_jid = ?';
+    const [rows] = await db.execute(sql, [groupJid]);
+    if (rows.length > 0) {
+      const { id, group_name } = rows[0];
+      if (group_name === 'Unknown Group' && newName !== 'Unknown Group') {
+        await updateGroupNameById(id, newName);
+      }
+    }
+  } catch (err) {
+    logger.warn(`updateGroupNameIfUnknown error: ${err.message}`);
+  }
+}
+
+async function updateGroupNameById(groupId, newName) {
+  try {
+    const sql = 'UPDATE groups SET group_name = ? WHERE id = ?';
+    await db.execute(sql, [newName, groupId]);
+    logger.debug(`Group name updated for id ${groupId} => ${newName}`);
+  } catch (err) {
+    logger.error(`updateGroupNameById error: ${err.message}`);
+  }
+}
+
+/**
+ * Ensure the membership row in group_members
+ */
+async function ensureGroupMember(groupId, userId) {
+  try {
+    const sql = 'INSERT IGNORE INTO group_members (group_id, user_id) VALUES (?, ?)';
+    await db.execute(sql, [groupId, userId]);
+  } catch (err) {
+    logger.error(`ensureGroupMember error: ${err.message}`);
+  }
+}
+
+/**
+ * Ensure a user row in DB
+ * @param {String} userJid 
+ * @param {String} userName 
+ * @returns userId (int)
+ */
+async function ensureUser(userJid, userName = 'Unknown User') {
+  try {
+    const upsertSql = `
+      INSERT INTO users (user_jid, user_name)
+      VALUES (?, ?)
+      ON DUPLICATE KEY UPDATE user_name = VALUES(user_name)
+    `;
+    await db.execute(upsertSql, [userJid, userName]);
+
+    // fetch ID
+    const selSql = 'SELECT id FROM users WHERE user_jid = ?';
+    const [rows] = await db.execute(selSql, [userJid]);
+    return rows[0]?.id;
+  } catch (err) {
+    logger.error(`ensureUser error: ${err.message}`);
+    throw err;
+  }
+}
+
+/**
+ * Update user name in DB
+ */
+async function updateUserName(userJid, newName) {
+  try {
+    const sql = 'UPDATE users SET user_name = ? WHERE user_jid = ?';
+    await db.execute(sql, [newName, userJid]);
+  } catch (err) {
+    logger.error(`updateUserName error: ${err.message}`);
+  }
+}
+
+// Export all
+module.exports = {
+  // participant cache logic
+  setParticipantName,
+
+  // handleContactsUpdate function
+  handleContactsUpdate,
+
+  // group & user logic
+  ensureGroup,
+  ensureGroupMember,
+  ensureUser,
+  updateUserName,
+  updateGroupNameIfUnknown
+};
+
+
+./src/middlewares/baileys_utils.js
+/* ./src/middlewares/baileys_utils.js
+   Utility functions for interacting with Baileys in a structured way.
+   Replaces plain console.log calls with our logger for better logging control.
+   Additional English comments have been added to clarify usage.
+*/
+
+const fs = require('fs').promises;
+const { existsSync } = require('fs');
+const path = require('path');
+const { downloadMediaMessage } = require('@whiskeysockets/baileys');
+const tmp = require('tmp');
+const { startFFmpegWorker, postFFmpegWorkerMessage } = require('../workers/ffmpeg_worker_manager');
+
+// Our custom logger
+const logger = require('../middlewares/logger');
+
+// We import groupCache if we want to quickly access cached group metadata
+// from the wa_connect module (not always strictly required here, but kept for reference).
+const { groupCache } = require('../events/wa_connect');
+
+/**
+ * Checks if a given Baileys message is from a group (by analyzing JID).
+ * @param {Object} msg - Baileys message object
+ * @returns {boolean}
+ */
+function isGroupMessage(msg) {
+  const from = msg?.key?.remoteJid;
+  const participant = msg?.key?.participant;
+  return from && from.endsWith('@g.us') && !!participant;
+}
+
+/**
+ * Checks if a given Baileys message is from a private chat (direct user).
+ * @param {Object} msg - Baileys message object
+ * @returns {boolean}
+ */
+function isPrivateMessage(msg) {
+  return !isGroupMessage(msg);
+}
+
+/**
+ * Checks if this message was sent by the bot itself.
+ * @param {Object} msg - Baileys message object
+ * @returns {boolean}
+ */
+function isFromMe(msg) {
+  return !!msg?.key?.fromMe;
+}
+
+/**
+ * Checks if the message is from a standard user (ends in @s.whatsapp.net).
+ * @param {Object} msg
+ * @returns {boolean}
+ */
+function isUserMessage(msg) {
+  const from = msg?.key?.remoteJid;
+  return from && from.endsWith('@s.whatsapp.net');
+}
+
+/**
+ * Checks if the message is broadcast.
+ * @param {Object} msg
+ * @returns {boolean}
+ */
+function isBroadcastMessage(msg) {
+  const from = msg?.key?.remoteJid;
+  return from && from.endsWith('@broadcast');
+}
+
+/**
+ * Checks if the message is from an announcement channel (likely a group announcement).
+ * @param {Object} msg
+ * @returns {boolean}
+ */
+function isAnnouncementMessage(msg) {
+  const from = msg?.key?.remoteJid;
+  return from && from.endsWith('@announcement');
+}
+
+/**
+ * Checks if the message is a "status" message posted to a status broadcast.
+ * @param {Object} msg
+ * @returns {boolean}
+ */
+function isStatusMessage(msg) {
+  const from = msg?.key?.remoteJid;
+  return from === 'status@broadcast';
+}
+
+/**
+ * Checks if the message is a voice note (PTT).
+ * @param {Object} msg
+ * @returns {boolean}
+ */
+function isVoiceMessage(msg) {
+  const audioMessage = msg?.message?.audioMessage;
+  return audioMessage?.ptt === true;
+}
+
+/**
+ * Checks if the message is a "view once" type (photo, video, or audio).
+ * @param {Object} msg
+ * @returns {boolean}
+ */
+function isViewOnceMessage(msg) {
+  return !!(msg?.message?.viewOnceMessage?.message);
+}
+
+/**
+ * Checks if the message is a "view once" video.
+ * @param {Object} msg
+ * @returns {boolean}
+ */
+function isViewOnceVideo(msg) {
+  const viewOnce = msg?.message?.viewOnceMessage?.message?.videoMessage;
+  return !!viewOnce;
+}
+
+/**
+ * Checks if the message is a "view once" photo.
+ * @param {Object} msg
+ * @returns {boolean}
+ */
+function isViewOncePhoto(msg) {
+  const viewOnce = msg?.message?.viewOnceMessage?.message?.imageMessage;
+  return !!viewOnce;
+}
+
+/**
+ * Checks if the message is a "view once" audio.
+ * @param {Object} msg
+ * @returns {boolean}
+ */
+function isViewOnceAudio(msg) {
+  const viewOnce = msg?.message?.viewOnceMessage?.message?.audioMessage;
+  return !!viewOnce;
+}
+
+/**
+ * Checks if the message is an audio (but not PTT).
+ * @param {Object} msg
+ * @returns {boolean}
+ */
+function isAudioMessage(msg) {
+  const audioMessage = msg?.message?.audioMessage;
+  // ptt===true is voice note, ptt===false is standard audio
+  return !!audioMessage && audioMessage.ptt === false;
+}
+
+/**
+ * Checks if the message is a document.
+ * @param {Object} msg
+ * @returns {boolean}
+ */
+function isDocumentMessage(msg) {
+  return !!msg?.message?.documentMessage;
+}
+
+/**
+ * Checks if the message is a location message.
+ * @param {Object} msg
+ * @returns {boolean}
+ */
+function isLocationMessage(msg) {
+  return !!msg?.message?.locationMessage;
+}
+
+/**
+ * Checks if the message is a single contact.
+ * @param {Object} msg
+ * @returns {boolean}
+ */
+function isContactMessage(msg) {
+  return !!msg?.message?.contactMessage;
+}
+
+/**
+ * Checks if the message is an animated GIF (videoMessage with gifPlayback).
+ * @param {Object} msg
+ * @returns {boolean}
+ */
+function isAnimationMessage(msg) {
+  const videoMessage = msg?.message?.videoMessage;
+  return videoMessage?.gifPlayback === true;
+}
+
+/**
+ * Checks if the message text contains a link.
+ * @param {Object} msg
+ * @returns {boolean}
+ */
+function isLinkMessage(msg) {
+  const text = msg?.message?.conversation || msg?.message?.extendedTextMessage?.text;
+  if (!text) return false;
+  const urlPattern = /(https?:\/\/[^\s]+)/g;
+  return urlPattern.test(text);
+}
+
+/**
+ * Checks if the message is a poll creation.
+ * @param {Object} msg
+ * @returns {boolean}
+ */
+function isPollMessage(msg) {
+  return !!msg?.message?.pollCreationMessage;
+}
+
+/**
+ * Checks if the message is an invoice.
+ * @param {Object} msg
+ * @returns {boolean}
+ */
+function isInvoiceMessage(msg) {
+  return !!msg?.message?.invoiceMessage;
+}
+
+/**
+ * Checks if the message is an image.
+ * @param {Object} msg
+ * @returns {boolean}
+ */
+function isImageMessage(msg) {
+  return !!msg?.message?.imageMessage;
+}
+
+/**
+ * Checks if the message is a video (videoMessage).
+ * @param {Object} msg
+ * @returns {boolean}
+ */
+function isVideoMessage(msg) {
+  return !!msg?.message?.videoMessage;
+}
+
+/**
+ * Checks if the message is a sticker.
+ * @param {Object} msg
+ * @returns {boolean}
+ */
+function isStickerMessage(msg) {
+  return !!msg?.message?.stickerMessage;
+}
+
+/**
+ * Checks if the message is a reaction to another message.
+ * @param {Object} msg
+ * @returns {boolean}
+ */
+function isReactionMessage(msg) {
+  return !!msg?.message?.reactionMessage;
+}
+
+/**
+ * Converts an audio buffer into OPUS PTT format via FFmpeg worker.
+ * @param {Buffer} inputBuffer - Original audio data
+ * @returns {Promise<Buffer>} - Converted audio data in OPUS format
+ */
+async function toPTT(inputBuffer) {
+  const base64Input = inputBuffer.toString('base64');
+  const result = await postFFmpegWorkerMessage('convertToPTT', { base64Input });
+  return Buffer.from(result, 'base64');
+}
+
+/**
+ * Sends a reaction (emoji) to a specific message.
+ * @param {Object} sock - Baileys socket instance
+ * @param {Object} msg - Original message object
+ * @param {string} emoji - The reaction emoji
+ */
+async function sendReaction(sock, msg, emoji = '👍') {
+  try {
+    await sock.sendMessage(msg.key.remoteJid, {
+      react: {
+        text: emoji,
+        key: msg.key,
+      },
+    });
+  } catch (error) {
+    console.error('Failed to send reaction:', error);
+  }
+}
+
+/**
+ * Sends an audio file (either as a standard audio or as a PTT/voice note).
+ * @param {Object} sock - Baileys socket instance
+ * @param {String} jid - Destination JID
+ * @param {String} audioPath - Local path to the audio file
+ * @param {Boolean} ptt - If true, convert and send as voice note
+ * @param {String} caption - Optional caption
+ * @param {Object} options - Additional sendMessage options
+ */
+async function sendAudio(sock, jid, audioPath, ptt = false, caption = '', options = {}) {
+  try {
+    const rawBuffer = await fs.readFile(audioPath);
+
+    let finalBuffer = rawBuffer;
+    if (ptt) {
+      // Convert to OPUS voice note
+      finalBuffer = await toPTT(rawBuffer);
+    }
+
+    await sock.sendMessage(jid, {
+      audio: finalBuffer,
+      mimetype: 'audio/ogg; codecs=opus',
+      ptt,
+      caption,
+      ...options,
+    });
+    logger.debug(`Sent audio to ${jid} from ${audioPath}`);
+  } catch (error) {
+    console.error(`Failed to send audio to ${jid} from ${audioPath}:`, error);
+  }
+}
+
+/**
+ * Sends a text with link preview. 
+ * Useful for sending clickable links with title, body, and thumbnail.
+ * @param {Object} sock
+ * @param {String} jid
+ * @param {Object} content - Includes text, title, body, thumbnailUrl, etc.
+ * @param {Object} options - Additional sendMessage options
+ */
+async function sendLinkWithPreview(
+  sock,
+  jid,
+  {
+    text = '',
+    title = '',
+    body = '',
+    thumbnailUrl = '',
+    sourceUrl = '',
+    mediaUrl = '',
+    mediaType = 2,
+    renderLargerThumbnail = true,
+  } = {},
+  options = {}
+) {
+  try {
+    const messageContent = {
+      text,
+      contextInfo: {
+        externalAdReply: {
+          title,
+          body,
+          thumbnailUrl,
+          sourceUrl,
+          mediaUrl,
+          mediaType,
+          renderLargerThumbnail,
+        },
+      },
+    };
+    await sock.sendMessage(jid, messageContent, options);
+    logger.debug(`Sent link with preview to ${jid}`);
+  } catch (error) {
+    console.error(`Failed to send link with preview to ${jid}:`, error);
+  }
+}
+
+/**
+ * Sends an image or video (with an optional caption).
+ * @param {Object} sock - Baileys socket instance
+ * @param {String} jid - Destination JID
+ * @param {String} mediaPath - Path to the image/video file
+ * @param {String} mediaType - 'image' or 'video'
+ * @param {String} caption - Optional caption
+ * @param {Object} options - Additional sendMessage options
+ */
+async function sendMedia(sock, jid, mediaPath, mediaType = 'image', caption = '', options = {}) {
+  try {
+    if (!existsSync(mediaPath)) {
+      console.error(`sendMedia: File not found at path ${mediaPath}`);
+      return;
+    }
+    const mediaBuffer = await fs.readFile(mediaPath);
+
+    const contentKey = mediaType === 'video' ? 'video' : 'image';
+    await sock.sendMessage(jid, {
+      [contentKey]: mediaBuffer,
+      caption,
+      ...options,
+    });
+    logger.debug(`Sent ${mediaType} to ${jid} from ${mediaPath}`);
+  } catch (error) {
+    console.error(`Failed to send ${mediaType} to ${jid} from ${mediaPath}:`, error);
+  }
+}
+
+/**
+ * Sends a media in "view once" mode (the recipient can only see once).
+ * @param {Object} sock
+ * @param {String} jid
+ * @param {String} mediaPath
+ * @param {String} mediaType - 'image', 'video', 'audio'
+ * @param {String} caption
+ * @param {Object} options
+ */
+async function sendViewOnceMedia(sock, jid, mediaPath, mediaType = 'image', caption = '', options = {}) {
+  try {
+    if (!existsSync(mediaPath)) {
+      console.error(`sendViewOnceMedia: File not found at path ${mediaPath}`);
+      return;
+    }
+    const mediaBuffer = await fs.readFile(mediaPath);
+
+    let contentKey = 'image';
+    if (mediaType === 'video') contentKey = 'video';
+    else if (mediaType === 'audio') contentKey = 'audio';
+
+    await sock.sendMessage(jid, {
+      [contentKey]: mediaBuffer,
+      caption,
+      viewOnce: true,
+      ...options,
+    });
+    logger.debug(`Sent view once ${mediaType} to ${jid} from ${mediaPath}`);
+  } catch (error) {
+    console.error(`Failed to send view once ${mediaType} to ${jid} from ${mediaPath}:`, error);
+  }
+}
+
+/**
+ * Edits a previously sent message (assuming the WA version supports it).
+ * Can preserve existing mentions or add new ones.
+ * @param {Object} sock
+ * @param {Object} originalMsg
+ * @param {String} newText
+ * @param {Array} newMentions
+ * @param {boolean} preserveContext
+ */
+async function editMessage(sock, originalMsg, newText, newMentions = [], preserveContext = true) {
+  if (!originalMsg?.key) {
+    logger.debug('Cannot edit: invalid original message key');
+    return;
+  }
+
+  let contextInfo;
+  if (preserveContext) {
+    const originalContext =
+      originalMsg?.message?.extendedTextMessage?.contextInfo ||
+      originalMsg?.message?.conversation?.contextInfo ||
+      null;
+
+    if (originalContext) {
+      contextInfo = { ...originalContext };
+      // Merge in new mentions if provided
+      const oldMentions = originalContext?.mentionedJid || [];
+      contextInfo.mentionedJid = Array.from(new Set([...oldMentions, ...newMentions]));
+    } else if (newMentions.length > 0) {
+      // If no existing context, create a new one just for mentions
+      contextInfo = { mentionedJid: newMentions };
+    }
+  } else {
+    // If not preserving context but we have new mentions
+    if (newMentions.length > 0) {
+      contextInfo = { mentionedJid: newMentions };
+    }
+  }
+
+  try {
+    await sock.sendMessage(originalMsg.key.remoteJid, {
+      edit: originalMsg.key,
+      text: newText,
+      contextInfo,
+    });
+    logger.debug('Message edited successfully.');
+  } catch (error) {
+    console.error(`Error editing message: ${error.message}`);
+  }
+}
+
+/**
+ * Sends either a text message or an image+caption, with optional mentions.
+ * @param {Object} sock
+ * @param {String} jid
+ * @param {Object} options
+ */
+async function sendMessage(sock, jid, options = {}) {
+  const {
+    text,
+    mentions = [],
+    quoted = null,
+    imagePath = null,
+    caption = '',
+    ...rest
+  } = options;
+
+  let messageContent = {};
+
+  if (imagePath) {
+    try {
+      if (!existsSync(imagePath)) {
+        console.error(`sendMessage: imagePath not found => ${imagePath}`);
+        return;
+      }
+      const imageBuffer = await fs.readFile(imagePath);
+      messageContent = {
+        image: imageBuffer,
+        caption,
+      };
+    } catch (error) {
+      console.error(`Failed to send image to ${jid} from ${imagePath}:`, error);
+      return;
+    }
+  } else if (text) {
+    messageContent = { text };
+  }
+
+  if (mentions.length > 0) {
+    messageContent.mentions = mentions;
+  }
+
+  const messageOptions = { ...rest };
+  if (quoted) {
+    messageOptions.quoted = quoted;
+  }
+
+  try {
+    await sock.sendMessage(jid, messageContent, messageOptions);
+    logger.debug(`Sent message to ${jid}`);
+  } catch (err) {
+    console.error(`Failed to send message to ${jid}:`, err);
+  }
+}
+
+/**
+ * Sends a vCard contact to a chat.
+ * @param {Object} sock
+ * @param {String} jid
+ * @param {String} contactNumber
+ * @param {String} displayName
+ */
+async function sendContact(sock, jid, contactNumber, displayName) {
+  const plainNumber = contactNumber.replace(/[^\d]/g, '');
+  try {
+    await sock.sendMessage(jid, {
+      contacts: {
+        displayName: displayName,
+        contacts: [
+          {
+            displayName: displayName,
+            vcard: `BEGIN:VCARD
+VERSION:3.0
+FN:${displayName}
+TEL;type=CELL;type=VOICE;waid=${plainNumber}:${contactNumber}
+END:VCARD`,
+          },
+        ],
+      },
+    });
+    logger.debug(`Sent contact for ${displayName} to ${jid}`);
+  } catch (error) {
+    console.error(`Failed to send contact to ${jid}:`, error);
+  }
+}
+
+/**
+ * Marks an array of messages as read.
+ * @param {Object} sock
+ * @param {Array} keys
+ */
+async function markMessagesAsRead(sock, keys = []) {
+  try {
+    await sock.readMessages(keys);
+  } catch (error) {
+    console.error('Failed to mark messages as read:', error);
+  }
+}
+
+/**
+ * Updates typing/recording presence.
+ * @param {Object} sock
+ * @param {String} presence - e.g. 'composing', 'recording', 'available'
+ * @param {String} jid - optional target chat
+ */
+async function updatePresence(sock, presence, jid = null) {
+  try {
+    if (jid) {
+      await sock.presenceSubscribe(jid);
+    }
+    await sock.sendPresenceUpdate(presence, jid);
+  } catch (error) {
+    console.error('Failed to update presence:', error);
+  }
+}
+
+/**
+ * Generic chat modification (archive, unarchive, etc.)
+ * @param {Object} sock
+ * @param {Object} modifications
+ * @param {String} jid
+ */
+async function chatModify(sock, modifications, jid) {
+  try {
+    await sock.chatModify(modifications, jid);
+  } catch (error) {
+    console.error('Failed to modify chat:', error);
+  }
+}
+
+async function archiveChat(sock, jid, lastMsg = null) {
+  const modifications = { archive: true };
+  if (lastMsg) {
+    modifications.lastMessages = [lastMsg];
+  }
+  await chatModify(sock, modifications, jid);
+}
+
+async function unarchiveChat(sock, jid, lastMsg = null) {
+  const modifications = { archive: false };
+  if (lastMsg) {
+    modifications.lastMessages = [lastMsg];
+  }
+  await chatModify(sock, modifications, jid);
+}
+
+async function muteChat(sock, jid, durationMs) {
+  const modifications = { mute: durationMs };
+  await chatModify(sock, modifications, jid);
+}
+
+async function unmuteChat(sock, jid) {
+  const modifications = { mute: null };
+  await chatModify(sock, modifications, jid);
+}
+
+async function pinChat(sock, jid) {
+  await chatModify(sock, { pin: true }, jid);
+}
+
+async function unpinChat(sock, jid) {
+  await chatModify(sock, { pin: false }, jid);
+}
+
+async function markChatUnread(sock, jid, lastMsg = null) {
+  const modifications = { markRead: false };
+  if (lastMsg) {
+    modifications.lastMessages = [lastMsg];
+  }
+  await chatModify(sock, modifications, jid);
+}
+
+async function deleteChat(sock, jid, lastMsg) {
+  const modifications = {
+    delete: true,
+    lastMessages: [lastMsg],
+  };
+  await chatModify(sock, modifications, jid);
+}
+
+async function starMessages(sock, jid, messages = []) {
+  await chatModify(sock, { star: { messages, star: true } }, jid);
+}
+
+async function unstarMessages(sock, jid, messages = []) {
+  await chatModify(sock, { star: { messages, star: false } }, jid);
+}
+
+async function setEphemeralMessagesInChat(sock, jid, seconds) {
+  try {
+    await sock.sendMessage(jid, { disappearingMessagesInChat: seconds });
+  } catch (error) {
+    console.error('Failed to set ephemeral messages in chat:', error);
+  }
+}
+
+/**
+ * Mentions all users in a group by fetching group participants.
+ * @param {Object} sock
+ * @param {String} groupId
+ * @param {String} message - The message to send
+ * @param {Object} options - Additional config (mentionInText: boolean)
+ */
+async function mentionAllInGroup(sock, groupId, message, { mentionInText = true } = {}) {
+  try {
+    // Attempt to retrieve group metadata from the cache first
+    let groupMetadata = groupCache.get(groupId);
+
+    // If not found in cache, fetch from Baileys
+    if (!groupMetadata) {
+      groupMetadata = await sock.groupMetadata(groupId);
+      groupCache.set(groupId, groupMetadata);
+    }
+
+    const participants = groupMetadata.participants.map((p) => p.id);
+    const mentions = participants;
+
+    let finalText = message;
+    if (mentionInText) {
+      finalText += '\n\n' + participants.map((id) => `@${id.split('@')[0]}`).join(' ');
+    }
+
+    await sock.sendMessage(groupId, {
+      text: finalText,
+      mentions,
+    });
+    logger.debug('mentionAllInGroup: completed');
+  } catch (err) {
+    console.error('Error in mentionAllInGroup:', err);
+  }
+}
+
+/**
+ * Joins a group by using the invite link (must be an admin or have a valid link).
+ * @param {Object} sock
+ * @param {String} inviteLink
+ * @returns {Promise<String>} - The newly joined group ID
+ */
+async function joinGroupByLink(sock, inviteLink) {
+  try {
+    const code = inviteLink.split('https://chat.whatsapp.com/')[1];
+    const result = await sock.groupAcceptInvite(code);
+    logger.debug(`Joined group with ID: ${result.gid}`);
+    return result.gid;
+  } catch (err) {
+    console.error('Error in joinGroupByLink:', err);
+  }
+}
+
+/**
+ * Adds participants to a group.
+ * @param {Object} sock
+ * @param {String} groupId
+ * @param {Array} participants
+ */
+async function addGroupParticipants(sock, groupId, participants) {
+  try {
+    await sock.groupParticipantsUpdate(groupId, participants, 'add');
+    logger.debug('Participants added to group', groupId);
+  } catch (err) {
+    console.error('Error in addGroupParticipants:', err);
+  }
+}
+
+/**
+ * Removes participants from a group.
+ * @param {Object} sock
+ * @param {String} groupId
+ * @param {Array} participants
+ */
+async function removeGroupParticipants(sock, groupId, participants) {
+  try {
+    await sock.groupParticipantsUpdate(groupId, participants, 'remove');
+    logger.debug('Participants removed from group', groupId);
+  } catch (err) {
+    console.error('Error in removeGroupParticipants:', err);
+  }
+}
+
+/**
+ * Updates the group title.
+ * @param {Object} sock
+ * @param {String} groupId
+ * @param {String} newTitle
+ */
+async function setGroupTitle(sock, groupId, newTitle) {
+  try {
+    await sock.groupUpdateSubject(groupId, newTitle);
+    logger.debug(`Group title updated to: ${newTitle}`);
+  } catch (err) {
+    console.error('Error in setGroupTitle:', err);
+  }
+}
+
+/**
+ * Updates the group description.
+ * @param {Object} sock
+ * @param {String} groupId
+ * @param {String} newDescription
+ */
+async function setGroupDescription(sock, groupId, newDescription) {
+  try {
+    await sock.groupUpdateDescription(groupId, newDescription);
+    logger.debug(`Group description updated to: ${newDescription}`);
+  } catch (err) {
+    console.error('Error in setGroupDescription:', err);
+  }
+}
+
+/**
+ * Promotes or demotes participants (update group admin).
+ * @param {Object} sock
+ * @param {String} groupId
+ * @param {Array} participants
+ * @param {String} action - 'promote' or 'demote'
+ */
+async function updateGroupAdmin(sock, groupId, participants, action = 'promote') {
+  try {
+    await sock.groupParticipantsUpdate(groupId, participants, action);
+    logger.debug(`Group admin action "${action}" done for group ${groupId}`);
+  } catch (err) {
+    console.error(`Error in updateGroupAdmin (${action}):`, err);
+  }
+}
+
+async function promoteParticipants(sock, groupId, participants) {
+  await updateGroupAdmin(sock, groupId, participants, 'promote');
+}
+
+async function demoteParticipants(sock, groupId, participants) {
+  await updateGroupAdmin(sock, groupId, participants, 'demote');
+}
+
+/**
+ * Sends text or image as a WhatsApp status (story).
+ * @param {Object} sock
+ * @param {String} type - 'text' or 'image'
+ * @param {String|Buffer} content - Text or path/buffer for an image
+ * @param {String} caption - If sending an image
+ */
+async function sendStatus(sock, type = 'text', content = '', caption = '') {
+  try {
+    if (type === 'text') {
+      await sock.sendMessage('status@broadcast', { text: content });
+    } else if (type === 'image') {
+      let buffer;
+      if (typeof content === 'string') {
+        buffer = await fs.readFile(content);
+      } else {
+        buffer = content;
+      }
+      await sock.sendMessage('status@broadcast', { image: buffer, caption });
+    } else {
+      console.error('sendStatus: unknown type. Use "text" or "image".');
+    }
+  } catch (err) {
+    console.error('Error in sendStatus:', err);
+  }
+}
+
+/**
+ * Sets the "about" message on your WA profile.
+ * @param {Object} sock
+ * @param {String} newAbout
+ */
+async function setAbout(sock, newAbout) {
+  try {
+    await sock.updateProfileStatus(newAbout);
+    logger.debug(`Profile about updated to: ${newAbout}`);
+  } catch (err) {
+    console.error('Error in setAbout:', err);
+  }
+}
+
+/**
+ * Changes the profile picture, given a path or a Buffer to the new image.
+ * @param {Object} sock
+ * @param {String|Buffer} imagePathOrBuffer
+ */
+async function setProfilePicture(sock, imagePathOrBuffer) {
+  try {
+    let buffer;
+    if (typeof imagePathOrBuffer === 'string') {
+      buffer = await fs.readFile(imagePathOrBuffer);
+    } else {
+      buffer = imagePathOrBuffer;
+    }
+    await sock.updateProfilePicture(buffer);
+    logger.debug('Profile picture updated.');
+  } catch (err) {
+    console.error('Error in setProfilePicture:', err);
+  }
+}
+
+/**
+ * Downloads an audio message (PTT or normal) and returns it as a Buffer.
+ * @param {Object} sock
+ * @param {Object} msg - Baileys message
+ * @returns {Promise<Buffer|null>}
+ */
+async function downloadAudioMessage(sock, msg) {
+  try {
+    const buffer = await downloadMediaMessage(msg, 'buffer', {}, { logger: console, reuploadRequest: sock.updateMediaMessage });
+    return buffer; // Audio content as Buffer
+  } catch (error) {
+    console.error('Failed to download audio message:', error);
+    return null;
+  }
+}
+
+/**
+ * Forward an existing audio message as PTT to a new destination.
+ * 1) Download the original audio
+ * 2) Convert to OPUS
+ * 3) Send as voice note
+ * @param {Object} sock
+ * @param {Object} originalMsg
+ * @param {String} targetJid
+ */
+async function forwardAudioAsPTT(sock, originalMsg, targetJid) {
+  try {
+    const audioBuffer = await downloadAudioMessage(sock, originalMsg);
+    if (!audioBuffer) {
+      logger.debug('No audio found in the message to forward.');
+      return;
+    }
+    const pttBuffer = await toPTT(audioBuffer);
+
+    await sock.sendMessage(targetJid, {
+      audio: pttBuffer,
+      mimetype: 'audio/ogg; codecs=opus',
+      ptt: true,
+    });
+    logger.debug(`Forwarded audio as PTT to ${targetJid}.`);
+  } catch (error) {
+    console.error('Error forwarding audio as PTT:', error);
+  }
+}
+
+// Exporting all functions for external usage
+module.exports = {
+  // Checkers
+  isGroupMessage,
+  isPrivateMessage,
+  isFromMe,
+  isUserMessage,
+  isBroadcastMessage,
+  isAnnouncementMessage,
+  isStatusMessage,
+  isVoiceMessage,
+  isViewOnceMessage,
+  isViewOnceVideo,
+  isViewOncePhoto,
+  isViewOnceAudio,
+  isAudioMessage,
+  isDocumentMessage,
+  isLocationMessage,
+  isContactMessage,
+  isAnimationMessage,
+  isLinkMessage,
+  isPollMessage,
+  isInvoiceMessage,
+  isImageMessage,
+  isVideoMessage,
+  isStickerMessage,
+  isReactionMessage,
+
+  // Sending & Basic
+  sendReaction,
+  sendAudio,
+  sendLinkWithPreview,
+  sendMedia,
+  sendViewOnceMedia,
+  editMessage,
+  sendMessage,
+  sendContact,
+
+  // Additional
+  markMessagesAsRead,
+  updatePresence,
+  chatModify,
+  archiveChat,
+  unarchiveChat,
+  muteChat,
+  unmuteChat,
+  pinChat,
+  unpinChat,
+  markChatUnread,
+  deleteChat,
+  starMessages,
+  unstarMessages,
+  setEphemeralMessagesInChat,
+
+  // Group / Profile / Status
+  mentionAllInGroup,
+  joinGroupByLink,
+  addGroupParticipants,
+  removeGroupParticipants,
+  setGroupTitle,
+  setGroupDescription,
+  promoteParticipants,
+  demoteParticipants,
+  sendStatus,
+  setAbout,
+  setProfilePicture,
+
+  // Audio Download + Forward
+  downloadAudioMessage,
+  forwardAudioAsPTT,
+};
+
+// IMPORTANT: Initialize (start) the FFmpeg worker at the end
+startFFmpegWorker();
+
+
+./src/middlewares/connection_manager.js
+// src/middlewares/connection_manager.js
+
+// We'll store each socket instance in a map, using the sessionName as a key.
+const socksMap = new Map();
+
+/**
+ * Set the socket instance for a specific session.
+ * @param {string} sessionName - Unique session identifier
+ * @param {Object} socket - The Baileys socket instance
+ */
+function setSock(sessionName, socket) {
+  socksMap.set(sessionName, socket);
+}
+
+/**
+ * Get the socket instance for a specific session.
+ * @param {string} sessionName - Unique session identifier
+ * @returns {Object|null} - The Baileys socket instance or null if not found
+ */
+function getSock(sessionName) {
+  return socksMap.get(sessionName) || null;
+}
+
+/**
+ * Get all active sockets (if you need to iterate over all).
+ * @returns {Array} - Array of socket instances
+ */
+function getAllSocks() {
+  return Array.from(socksMap.values());
+}
+
+module.exports = {
+  setSock,
+  getSock,
+  getAllSocks
+};
+
+
+./src/middlewares/logger.js
+// ./src/middlewares/logger.js
+const pino = require('pino');
+
+// Create the base pino logger
+const baseLogger = pino({
+  level: 'info',
+  transport: {
+    target: 'pino-pretty',
+    options: {
+      colorize: true,
+      translateTime: 'yyyy-mm-dd HH:MM:ss.l',
+      ignore: 'pid,hostname'
+    }
+  }
+});
+
+/**
+ * Helper function to join multiple arguments into one string.
+ * - If an argument is an object, JSON-stringify it.
+ * - Otherwise, convert it to a string.
+ * @param  {...any} args 
+ * @returns {String}
+ */
+function formatArgs(...args) {
+  return args
+    .map((arg) => {
+      if (typeof arg === 'object') {
+        return JSON.stringify(arg);
+      }
+      return String(arg);
+    })
+    .join(' '); // separate by space
+}
+
+/**
+ * Our custom logger object:
+ * - Wrap pino's methods so we handle multiple arguments gracefully.
+ */
+const logger = {
+  info: (...args) => {
+    baseLogger.info(formatArgs(...args));
+  },
+  error: (...args) => {
+    baseLogger.error(formatArgs(...args));
+  },
+  warn: (...args) => {
+    baseLogger.warn(formatArgs(...args));
+  },
+  debug: (...args) => {
+    baseLogger.debug(formatArgs(...args));
+  },
+  // If you need more levels, add them here
+};
+
+module.exports = logger;
+
+
+./src/middlewares/message_functions.js
+/* ./src/middlewares/message_functions.js */
+
+const db = require('../utils/db');
+const logger = require('./logger');
+
+// We replaced group_data + user_data references with wa_contacts_groups
+const { ensureGroup, ensureGroupMember, ensureUser } = require('../events/wa_contacts_groups');
+
+const MAX_MESSAGE_LENGTH = 50000;
+
+function extractMessageText(msg) {
+  let content = msg.message;
+
+  if (content?.ephemeralMessage) {
+    content = content.ephemeralMessage.message;
+  }
+
+  if (content?.viewOnceMessage) {
+    content = content.viewOnceMessage.message;
+  }
+
+  if (content) {
+    if (content.conversation) {
+      return content.conversation;
+    }
+    if (content.extendedTextMessage?.text) {
+      return content.extendedTextMessage.text;
+    }
+    if (content.imageMessage?.caption) {
+      return content.imageMessage.caption;
+    }
+    if (content.videoMessage?.caption) {
+      return content.videoMessage.caption;
+    }
+    if (content.documentMessage?.caption) {
+      return content.documentMessage.caption;
+    }
+    if (content.audioMessage?.ptt === false && content.audioMessage?.caption) {
+      return content.audioMessage.caption;
+    }
+    if (content.replyMessage?.extendedTextMessage?.text) {
+      return content.replyMessage.extendedTextMessage.text;
+    }
+  }
+
+  return '';
+}
+
+function validateMessageLength(message) {
+  if (message.length > MAX_MESSAGE_LENGTH) {
+    throw new Error(
+      `Message exceeds the maximum allowed length of ${MAX_MESSAGE_LENGTH} characters.`
+    );
+  }
+  return message;
+}
+
+/**
+ * Updates message stats, ensures group and user, etc.
+ */
+async function updateMessageStats(sock, groupJid, userJid, messageText, timestamp, realGroupName) {
+  try {
+    // ensure group
+    const groupId = await ensureGroup(groupJid, realGroupName);
+    // ensure user
+    const userId = await ensureUser(userJid);
+    // ensure membership
+    await ensureGroupMember(groupId, userId);
+
+    // Insert or update in 'messages' table
+    const sql = `
+      INSERT INTO messages (group_id, user_id, message_text, last_timestamp, count, total_interval)
+      VALUES (?, ?, ?, ?, 1, 0)
+      ON DUPLICATE KEY UPDATE
+        count = count + 1,
+        total_interval = total_interval + (VALUES(last_timestamp) - last_timestamp),
+        last_timestamp = VALUES(last_timestamp)
+    `;
+    await db.execute(sql, [groupId, userId, messageText, timestamp]);
+  } catch (error) {
+    logger.error(`updateMessageStats error: ${error.message}`);
+  }
+}
+
+module.exports = {
+  extractMessageText,
+  validateMessageLength,
+  updateMessageStats
+};
+
+
+./src/server/server.js
+// ./src/server/server.js
+
+const path = require('path');
+const dotenv = require('dotenv');
+const express = require('express');
+const logger = require('../middlewares/logger');
+const sendMessageRoute = require('./routes/send_alarm_message');
+
+// Load environment variables from ../data/.env
+dotenv.config({ path: path.join(__dirname, '../../data/.env') });
+
+const app = express();
+
+// We parse JSON bodies
+app.use(express.json());
+
+// Here we mount the route
+app.use('/post', sendMessageRoute);
+
+// If you want to configure the port from .env or fallback
+const port = process.env.ROUTES_API_SERVER_PORT || 9999;
+
+/**
+ * Note: Here we start the server on the configured port.
+ *   This server is used to handle REST endpoints such as "/post/send"
+ */
+app.listen(port, '0.0.0.0', () => {
+    logger.info(`Server listening on port ${port}`);
+});
+
+./src/server/routes/send_alarm_message.js
+// ./src/server/routes/sendMessage.js
+
+const express = require('express');
+const router = express.Router();
+const { getSock } = require('../../middlewares/connection_manager');
+const logger = require('../../middlewares/logger');
+const { Worker } = require('worker_threads'); // Worker usage
+
+// Here we define a fixed session name.
+const FIXED_SESSION_NAME = 'Kizu_Assistant_Alarm';
+
+/**
+ * Start a worker for demonstration
+ */
+let sendAlarmWorker;
+
+function startSendAlarmWorker() {
+    if (!sendAlarmWorker) {
+        const path = require('path');
+        const workerPath = path.join(__dirname, '../../workers/send_alarm_message_worker.js');
+        sendAlarmWorker = new Worker(workerPath);
+
+        sendAlarmWorker.on('message', (msg) => {
+            logger.debug(`[sendAlarmMessage Worker] Message: ${JSON.stringify(msg)}`);
+        });
+
+        sendAlarmWorker.on('error', (err) => {
+            logger.error(`[sendAlarmMessage Worker] Error: ${err.message}`);
+        });
+
+        sendAlarmWorker.on('exit', (code) => {
+            logger.warn(`[sendAlarmMessage Worker] Exited with code ${code}`);
+            sendAlarmWorker = null;
+        });
+
+        logger.info('[sendAlarmMessage Worker] Spawned successfully.');
+    }
+}
+
+// Initialize the worker once at module load
+startSendAlarmWorker();
+
+/**
+ * POST /post/send
+ * Body params: { char, msg, number }
+ */
+router.post('/send', async (req, res) => {
+    try {
+        const { char, msg, number } = req.body;
+
+        if (!char || !msg || !number) {
+            return res.status(400).json({
+                error: 'Parameters missing. Provide char, msg, and number.'
+            });
+        }
+
+        const sock = getSock(FIXED_SESSION_NAME);
+        if (!sock) {
+            return res.status(404).json({
+                error: `No active session found for '${FIXED_SESSION_NAME}'.`
+            });
+        }
+
+        const textToSend = `${char} - ${msg}`;
+
+        // If we wanted to hand off to the worker for more logic, we could:
+        if (sendAlarmWorker) {
+            sendAlarmWorker.postMessage({
+                action: 'processSend',
+                data: { char, msg, number }
+            });
+        }
+
+        await sock.sendMessage(`${number}@s.whatsapp.net`, { text: textToSend });
+
+        res.json({
+            message: `Message sent to ${number} via session '${FIXED_SESSION_NAME}' successfully.`,
+            dataSent: { char, msg, number }
+        });
+    } catch (err) {
+        logger.error('Error sending message:', err);
+        res.status(500).json({
+            error: 'Error sending message',
+            details: err.message
+        });
+    }
+});
+
+module.exports = router;
+
+
+./src/utils/db.js
+// src/utils/db.js
+
+const mysql = require('mysql2/promise');
+const dotenv = require('dotenv');
+const path = require('path');
+const logger = require('../middlewares/logger');
+
+// Load environment variables from the .env file inside /data
+dotenv.config({ path: path.join(__dirname, '../../data/.env') });
+
+/*
+  Database configuration. 
+  Adjust these environment variables according to your server's credentials.
+*/
+const dbConfig = {
+  host: process.env.DB_HOST || 'localhost',
+  port: Number(process.env.DB_PORT) || 3306,
+  user: process.env.DB_USER || 'dbuser',
+  password: process.env.DB_PASSWORD || 'dbpass',
+  database: process.env.DB_NAME || 'test_db',
+
+  // Pool options:
+  waitForConnections: true,   // Allows the pool to queue connection requests if no connections are free
+  connectionLimit: 10,        // Maximum number of connections in the pool
+  queueLimit: 0               // Maximum request queue size (0 = unlimited)
+};
+
+// Create a connection pool for MySQL
+const pool = mysql.createPool(dbConfig);
+
+// Optional: track new connections or errors
+pool.on('connection', (connection) => {
+  logger.debug('New database connection established');
+  connection.on('error', (err) => {
+    logger.debug(`DB connection error: ${err.message}`);
+  });
+});
+
+/**
+ * Executes a SQL query with parameters, returning the result.
+ * This function automatically gets a connection from the pool and releases it when done.
+ * @param {String} query - The SQL query string (e.g., "SELECT * FROM table WHERE id = ?")
+ * @param {Array} [params] - Parameters to safely insert into the query
+ * @returns {Array} - Returns [rows, fields] from the query
+ */
+async function execute(query, params = []) {
+  try {
+    const [rows, fields] = await pool.execute(query, params);
+    return [rows, fields];
+  } catch (error) {
+    logger.error(`Database query error: ${error.message}`);
+    throw error;
+  }
+}
+
+module.exports = {
+  execute,
+  pool
+};
+
+
+./src/utils/leads_data.js
+// ./src/utils/leads_data.js
+
+const db = require('./db');
+const logger = require('../middlewares/logger');
+
+/**
+ * Ensure the leads_responses table exists, if not create it.
+ * This table tracks which leads have been responded to.
+ */
+async function ensureLeadsResponseTable() {
+    try {
+        const createTableQuery = `
+            CREATE TABLE IF NOT EXISTS leads_responses (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_jid VARCHAR(100) NOT NULL UNIQUE,
+                responded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `;
+        await db.execute(createTableQuery);
+        logger.info('Ensured that leads_responses table exists.');
+    } catch (error) {
+        logger.error(`Error ensuring leads_responses table exists: ${error.message}`);
+        throw error;
+    }
+}
+
+/**
+ * Check if a given user was already responded to.
+ * @param {String} userJid - The JID of the user (e.g. "5511987654321@s.whatsapp.net").
+ * @returns {Boolean} - True if user was responded to, otherwise false.
+ */
+async function isUserResponded(userJid) {
+    try {
+        const query = 'SELECT id FROM leads_responses WHERE user_jid = ?';
+        const [rows] = await db.execute(query, [userJid]);
+        return rows.length > 0;
+    } catch (error) {
+        logger.error(`Error checking if user responded: ${error.message}`);
+        throw error;
+    }
+}
+
+/**
+ * Mark a user as responded by inserting them into leads_responses.
+ * @param {String} userJid - The JID of the user.
+ */
+async function markUserResponded(userJid) {
+    try {
+        const query = `
+            INSERT INTO leads_responses (user_jid)
+            VALUES (?)
+            ON DUPLICATE KEY UPDATE responded_at = CURRENT_TIMESTAMP
+        `;
+        await db.execute(query, [userJid]);
+        logger.info(`Marked user ${userJid} as responded in leads_responses table.`);
+    } catch (error) {
+        logger.error(`Error marking user responded: ${error.message}`);
+        throw error;
+    }
+}
+
+module.exports = {
+    ensureLeadsResponseTable,
+    isUserResponded,
+    markUserResponded
+};
+
+
+./src/utils/message_store.js
+// ./src/utils/message_store.js
+/**
+ * This module provides a database-based store for Baileys WAMessage objects,
+ * but offloads the DB operations to a worker to avoid blocking the main thread.
+ *
+ * Steps to Use:
+ *  1. Call `startDBWorker()` once during startup to initialize the worker thread.
+ *  2. Call `ensureMessagesTable()` (it sends the command to the worker).
+ *  3. In your "messages.upsert" event, call `storeMessageInDB(sessionName, fullWAMessage)`.
+ *  4. Baileys calls `getMessageFromStore(sessionName, key)` automatically for message retries/poll decryption.
+ */
+
+const { Worker } = require('worker_threads');
+const path = require('path');
+const logger = require('../middlewares/logger');
+
+let dbWorker;
+
+/**
+ * Starts the worker thread that will handle DB operations for messages.
+ */
+function startDBWorker() {
+  if (!dbWorker) {
+    const workerPath = path.join(__dirname, '../..', 'src/workers/db_worker.js');
+    dbWorker = new Worker(workerPath);
+
+    dbWorker.on('message', (msg) => {
+      if (msg.status === 'error') {
+        logger.error(`[message_store Worker] Error in action "${msg.action}": ${msg.error}`);
+      } else {
+        logger.debug(`[message_store Worker] Action "${msg.action}" completed successfully.`);
+      }
+    });
+
+    dbWorker.on('error', (err) => {
+      logger.error(`[message_store Worker] Worker Error: ${err.message}`);
+    });
+
+    dbWorker.on('exit', (code) => {
+      logger.error(`[message_store Worker] Exited with code ${code}`);
+      dbWorker = null;
+    });
+  }
+}
+
+/**
+ * Sends a message to the worker thread and returns a promise with the result.
+ */
+function postWorkerMessage(action, data = {}) {
+  return new Promise((resolve, reject) => {
+    if (!dbWorker) {
+      return reject(new Error('dbWorker is not initialized.'));
+    }
+    const request = { action, data };
+
+    const onMessage = (msg) => {
+      if (msg.action === action) {
+        dbWorker.off('message', onMessage);
+        if (msg.status === 'ok') {
+          resolve(msg.result || null);
+        } else {
+          reject(new Error(msg.error || 'Unknown worker error'));
+        }
+      }
+    };
+
+    dbWorker.on('message', onMessage);
+    dbWorker.postMessage(request);
+  });
+}
+
+/**
+ * Creates the 'baileys_messages' table if not existing.
+ */
+async function ensureMessagesTable() {
+  await postWorkerMessage('ensureMessagesTable');
+}
+
+/**
+ * Stores a full Baileys WAMessage object in the DB by sending it to the worker.
+ */
+async function storeMessageInDB(sessionName, waMessage) {
+  try {
+    if (!waMessage?.key?.id || !waMessage.key.remoteJid) {
+      return;
+    }
+
+    const remoteJid = waMessage.key.remoteJid;
+    const messageId = waMessage.key.id;
+    const fromMe = !!waMessage.key.fromMe;
+    const messageTimestamp = waMessage.messageTimestamp
+      ? waMessage.messageTimestamp * 1000
+      : Date.now();
+    const messageJson = JSON.stringify(waMessage);
+
+    await postWorkerMessage('storeMessageInDB', {
+      sessionName,
+      remoteJid,
+      messageId,
+      fromMe,
+      messageTimestamp,
+      messageJson
+    });
+  } catch (error) {
+    logger.error(`[storeMessageInDB] Worker call failed: ${error.message}`);
+  }
+}
+
+/**
+ * Retrieves a stored message from DB to help Baileys with poll/event decryption or message retries.
+ */
+async function getMessageFromStore(sessionName, key) {
+  try {
+    if (!key?.id || !key.remoteJid) {
+      return null;
+    }
+    const remoteJid = key.remoteJid;
+    const messageId = key.id;
+
+    const messageJson = await postWorkerMessage('getMessageFromStore', {
+      sessionName,
+      remoteJid,
+      messageId
+    });
+
+    if (messageJson) {
+      return JSON.parse(messageJson);
+    }
+    return null;
+  } catch (error) {
+    logger.error(`[getMessageFromStore] Worker call failed: ${error.message}`);
+    return null;
+  }
+}
+
+module.exports = {
+  startDBWorker,
+  ensureMessagesTable,
+  storeMessageInDB,
+  getMessageFromStore
+};
+
+
+./src/utils/qrcode.js
+const qrcode = require('qrcode-terminal');
+
+function generateQRCode(qr) {
+    qrcode.generate(qr, { small: true });
+}
+
+module.exports = generateQRCode;
+
+
+./src/utils/translation_utils.js
+Error reading file: 'utf-8' codec can't decode byte 0xe3 in position 106: invalid continuation byte
+
+./src/utils/validators.js
+// src/utils/validators.js
+
+// Helper function to validate phone numbers
+function validatePhoneNumber(phoneNumber) {
+    const phoneRegex = /^\+\d{1,3}([\-\u2011\s]?\d+)+$/; // Accept normal or non-standard hyphens
+    const sanitizedPhoneNumber = phoneNumber.replace(/[\s\-\+\u2011]/g, '');
+    const sanitizedRegex = /^\d{6,15}$/; // Adjust the length as needed
+    return phoneRegex.test(phoneNumber) && sanitizedRegex.test(sanitizedPhoneNumber);
+}
+
+module.exports = {
+    validatePhoneNumber
+};
+
+
+./src/workers/db_worker.js
+// ./src/workers/db_worker.js
+/**
+ * This worker handles database operations for messages to avoid blocking the main thread with DB I/O.
+ *
+ * ACTIONS this worker supports:
+ *  1) "ensureMessagesTable" -> create the 'baileys_messages' table if not exists.
+ *  2) "storeMessageInDB" -> insert/update a message record in DB.
+ *  3) "getMessageFromStore" -> retrieve a message record from DB.
+ */
+
+const { parentPort } = require('worker_threads');
+const logger = require('../middlewares/logger');
+const db = require('../utils/db');
+
+const CREATE_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS baileys_messages (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    session_name VARCHAR(255) NOT NULL,
+    remote_jid VARCHAR(255) NOT NULL,
+    message_id VARCHAR(255) NOT NULL,
+    from_me BOOLEAN DEFAULT FALSE,
+    timestamp BIGINT,
+    message_json LONGTEXT,
+    UNIQUE KEY unique_msg (session_name, remote_jid, message_id)
+  )
+`;
+
+/**
+ * Creates the baileys_messages table if it doesn't exist.
+ */
+async function ensureMessagesTable() {
+  await db.execute(CREATE_TABLE_SQL);
+  logger.info('[dbWorker] Ensured that "baileys_messages" table exists.');
+}
+
+/**
+ * Insert or update the message in baileys_messages table.
+ */
+async function storeMessageInDB(params) {
+  const { sessionName, remoteJid, messageId, fromMe, messageTimestamp, messageJson } = params;
+  const insertQuery = `
+    INSERT INTO baileys_messages
+        (session_name, remote_jid, message_id, from_me, timestamp, message_json)
+    VALUES
+        (?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+        timestamp = VALUES(timestamp),
+        message_json = VALUES(message_json)
+  `;
+  const sqlParams = [ sessionName, remoteJid, messageId, fromMe, messageTimestamp, messageJson ];
+  await db.execute(insertQuery, sqlParams);
+}
+
+/**
+ * Retrieve a message from DB by sessionName + key.
+ */
+async function getMessageFromStore(params) {
+  const { sessionName, remoteJid, messageId } = params;
+  const selectQuery = `
+    SELECT message_json
+    FROM baileys_messages
+    WHERE session_name = ?
+      AND remote_jid = ?
+      AND message_id = ?
+    LIMIT 1
+  `;
+  const [rows] = await db.execute(selectQuery, [sessionName, remoteJid, messageId]);
+  if (rows && rows.length > 0) {
+    return rows[0].message_json;
+  }
+  return null;
+}
+
+// Listen for messages from the parent
+parentPort.on('message', async (payload) => {
+  const { action, data } = payload;
+
+  try {
+    switch (action) {
+      case 'ensureMessagesTable':
+        await ensureMessagesTable();
+        parentPort.postMessage({ status: 'ok', action });
+        break;
+      case 'storeMessageInDB':
+        await storeMessageInDB(data);
+        parentPort.postMessage({ status: 'ok', action });
+        break;
+      case 'getMessageFromStore':
+        {
+          const messageJson = await getMessageFromStore(data);
+          parentPort.postMessage({ status: 'ok', action, result: messageJson });
+        }
+        break;
+      default:
+        parentPort.postMessage({ status: 'error', action, error: `Unknown action: ${action}` });
+        break;
+    }
+  } catch (err) {
+    logger.error(`[dbWorker] Error in action "${action}": ${err.message}`);
+    parentPort.postMessage({ status: 'error', action, error: err.message });
+  }
+});
+
+
+./src/workers/ffmpeg_worker.js
+// ./src/workers/ffmpeg_worker.js
+/**
+ * This worker handles FFmpeg operations (e.g., converting audio to OPUS PTT).
+ * It receives messages with actions like "convertToPTT" and returns base64-encoded data.
+ */
+
+const { parentPort } = require('worker_threads');
+const ffmpeg = require('fluent-ffmpeg');
+const tmp = require('tmp');
+const fs = require('fs').promises;
+const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
+
+// Set the path to the ffmpeg binary
+ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+
+/**
+ * Convert input base64 audio to PTT (OPUS).
+ * 1) Write input to a temp file
+ * 2) Convert using FFmpeg
+ * 3) Return base64 of the result
+ */
+async function convertToPTT(base64Input) {
+  const inputBuffer = Buffer.from(base64Input, 'base64');
+  const tempInputPath = tmp.tmpNameSync({ prefix: 'ffmpeg_input_', postfix: '.tmp' });
+  const tempOutputPath = tmp.tmpNameSync({ prefix: 'ffmpeg_output_', postfix: '.opus' });
+
+  await fs.writeFile(tempInputPath, inputBuffer);
+
+  return new Promise((resolve, reject) => {
+    ffmpeg(tempInputPath)
+      .toFormat('opus')
+      .audioCodec('libopus')
+      .audioChannels(1)
+      .audioFrequency(48000)
+      .audioBitrate('128k')
+      .outputOptions(['-application voip'])
+      .on('end', async () => {
+        try {
+          const converted = await fs.readFile(tempOutputPath);
+          // Cleanup
+          await fs.unlink(tempInputPath).catch(() => {});
+          await fs.unlink(tempOutputPath).catch(() => {});
+          resolve(converted.toString('base64'));
+        } catch (readErr) {
+          reject(new Error(`Failed to read output file: ${readErr.message}`));
+        }
+      })
+      .on('error', async (err, stdout, stderr) => {
+        // Cleanup
+        await fs.unlink(tempInputPath).catch(() => {});
+        await fs.unlink(tempOutputPath).catch(() => {});
+        reject(new Error(`FFmpeg error: ${err.message}\n${stderr}`));
+      })
+      .save(tempOutputPath);
+  });
+}
+
+// Listen for messages from the parent
+parentPort.on('message', async (payload) => {
+  const { action, data } = payload;
+  try {
+    if (action === 'convertToPTT') {
+      const resultBase64 = await convertToPTT(data.base64Input);
+      parentPort.postMessage({ status: 'ok', action, result: resultBase64 });
+    } else {
+      parentPort.postMessage({ status: 'error', action, error: `Unknown action: ${action}` });
+    }
+  } catch (err) {
+    parentPort.postMessage({ status: 'error', action, error: err.message });
+  }
+});
+
+
+./src/workers/ffmpeg_worker_manager.js
+// ./src/workers/ffmpeg_worker_manager.js
+/**
+ * This module starts a worker for FFmpeg tasks and provides a function to post messages to it.
+ * Reuses the same pattern we used for the DB worker.
+ */
+
+const { Worker } = require('worker_threads');
+const path = require('path');
+
+let ffmpegWorker;
+
+/**
+ * Start the FFmpeg worker if not started yet.
+ */
+function startFFmpegWorker() {
+  if (!ffmpegWorker) {
+    const workerPath = path.join(__dirname, 'ffmpeg_worker.js');
+    ffmpegWorker = new Worker(workerPath);
+
+    ffmpegWorker.on('error', (err) => {
+      console.error('[FFmpegWorker] Worker Error:', err);
+    });
+
+    ffmpegWorker.on('exit', (code) => {
+      console.error(`[FFmpegWorker] Exited with code ${code}`);
+      ffmpegWorker = null;
+    });
+  }
+}
+
+/**
+ * Post a message to the FFmpeg worker and wait for response.
+ * @param {String} action - The action to perform (e.g. "convertToPTT")
+ * @param {Object} data - Data object for that action
+ * @returns {Promise<any>} - The result from the worker
+ */
+function postFFmpegWorkerMessage(action, data = {}) {
+  return new Promise((resolve, reject) => {
+    if (!ffmpegWorker) {
+      return reject(new Error('FFmpeg worker is not initialized.'));
+    }
+
+    const request = { action, data };
+
+    const onMessage = (msg) => {
+      if (msg.action === action) {
+        ffmpegWorker.off('message', onMessage);
+        if (msg.status === 'ok') {
+          resolve(msg.result);
+        } else {
+          reject(new Error(msg.error || 'Unknown FFmpeg worker error'));
+        }
+      }
+    };
+
+    ffmpegWorker.on('message', onMessage);
+    ffmpegWorker.postMessage(request);
+  });
+}
+
+module.exports = {
+  startFFmpegWorker,
+  postFFmpegWorkerMessage
+};
+
+
+./src/workers/group_forward_manager_worker.js
+// ./src/workers/group_forward_manager_worker.js
+/**
+ * Worker referenced in group_forward_manager.js.
+ * Currently just logs and responds to messages from the parent.
+ */
+
+const { parentPort } = require('worker_threads');
+
+parentPort.on('message', async (payload) => {
+  const { action, data } = payload;
+
+  try {
+    switch (action) {
+      case 'forwardLogic':
+        parentPort.postMessage({
+          status: 'ok',
+          action,
+          result: 'Forward logic executed in worker.',
+        });
+        break;
+
+      default:
+        parentPort.postMessage({
+          status: 'error',
+          action,
+          error: `Unknown action: ${action} (group_forward_manager_worker)`,
+        });
+        break;
+    }
+  } catch (err) {
+    parentPort.postMessage({ status: 'error', action, error: err.message });
+  }
+});
+
+
+./src/workers/group_manager_helper_worker.js
+// ./src/workers/group_manager_helper_worker.js
+/**
+ * Worker referenced in group_manager_helper.js.
+ * Intended to handle heavy-lifting for group message processing off the main thread.
+ * Currently, it just listens for messages, logs them, and replies.
+ */
+
+const { parentPort } = require('worker_threads');
+
+parentPort.on('message', async (payload) => {
+  const { action, data } = payload;
+
+  try {
+    switch (action) {
+      case 'processGroupMessage':
+        parentPort.postMessage({
+          status: 'ok',
+          action,
+          result: 'Group message processed in worker.',
+        });
+        break;
+
+      default:
+        parentPort.postMessage({
+          status: 'error',
+          action,
+          error: `Unknown action: ${action} (group_manager_helper_worker)`,
+        });
+        break;
+    }
+  } catch (err) {
+    parentPort.postMessage({ status: 'error', action, error: err.message });
+  }
+});
+
+
+./src/workers/kizu_alarm_handler_worker.js
+// ./src/workers/kizu_alarm_handler_worker.js
+/**
+ * Worker referenced in kizu_alarm_handler.js.
+ * Intended for extended Kizu Alarm logic on a separate thread.
+ * Currently, it just logs the data it receives and responds.
+ */
+
+const { parentPort } = require('worker_threads');
+
+parentPort.on('message', async (payload) => {
+  const { action, userJid } = payload;
+
+  try {
+    switch (action) {
+      case 'startLeadSequence':
+        parentPort.postMessage({
+          status: 'ok',
+          action,
+          result: `Started lead sequence for ${userJid} in worker.`,
+        });
+        break;
+
+      default:
+        parentPort.postMessage({
+          status: 'error',
+          action,
+          error: `Unknown action: ${action} (kizu_alarm_handler_worker)`,
+        });
+        break;
+    }
+  } catch (err) {
+    parentPort.postMessage({ status: 'error', action, error: err.message });
+  }
+});
+
+
+./src/workers/schedule_messager_worker.js
+// ./src/workers/schedule_messager_worker.js
+/**
+ * Worker referenced in scheduled_messager.js.
+ * This worker can handle scheduling logic off the main thread if needed.
+ * Currently, it just listens for messages and logs them.
+ */
+
+const { parentPort } = require('worker_threads');
+
+parentPort.on('message', async (payload) => {
+  const { action, data } = payload;
+  try {
+    switch (action) {
+      case 'scheduleTask':
+        // Perform scheduling logic here if needed
+        parentPort.postMessage({ status: 'ok', action, result: 'Task scheduled in worker.' });
+        break;
+
+      default:
+        parentPort.postMessage({
+          status: 'error',
+          action,
+          error: `Unknown action: ${action} (schedule_messager_worker)`,
+        });
+        break;
+    }
+  } catch (err) {
+    parentPort.postMessage({ status: 'error', action, error: err.message });
+  }
+});
+
+
+./src/workers/send_alarm_message_worker.js
+// ./src/workers/sendAlarmMessage_worker.js
+/**
+ * This worker is referenced in sendAlarmMessage.js.
+ * It listens for messages from the parent, logs them,
+ * and responds with a success message.
+ */
+
+const { parentPort } = require('worker_threads');
+
+// Listen for messages from the parent
+parentPort.on('message', async (payload) => {
+  const { action, data } = payload;
+
+  try {
+    switch (action) {
+      case 'processSend':
+
+        // Then reply back
+        parentPort.postMessage({ status: 'ok', action, result: 'Message processed in worker.' });
+        break;
+
+      default:
+        parentPort.postMessage({
+          status: 'error',
+          action,
+          error: `Unknown action: ${action} (sendAlarmMessage_worker)`,
+        });
+        break;
+    }
+  } catch (err) {
+    parentPort.postMessage({ status: 'error', action, error: err.message });
+  }
+});
+
+
+Project Structure Map:
+----------------------
+./
+  ├── data/
+  ├── media/
+  ├── src/
+  ├── bot.js
+  ├── config.json
+  ├── package.json
+
+./data
+  ├── bot_last_sent.json
+  ├── leads_processing.json
+
+./src/events
+  ├── big_leo_handler.js
+  ├── group_forward_manager.js
+  ├── group_manager_helper.js
+  ├── kizu_alarm_handler.js
+  ├── scheduled_messager.js
+  ├── wa_connect.js
+  ├── wa_contacts_groups.js
+
+./src/middlewares
+  ├── baileys_utils.js
+  ├── connection_manager.js
+  ├── logger.js
+  ├── message_functions.js
+
+./src/server
+  ├── routes/
+  ├── server.js
+
+./src/server/routes
+  ├── send_alarm_message.js
+
+./src/utils
+  ├── db.js
+  ├── leads_data.js
+  ├── message_store.js
+  ├── qrcode.js
+  ├── translation_utils.js
+  ├── validators.js
+
+./src/workers
+  ├── db_worker.js
+  ├── ffmpeg_worker.js
+  ├── ffmpeg_worker_manager.js
+  ├── group_forward_manager_worker.js
+  ├── group_manager_helper_worker.js
+  ├── kizu_alarm_handler_worker.js
+  ├── schedule_messager_worker.js
+  ├── send_alarm_message_worker.js
+
